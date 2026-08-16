@@ -4,15 +4,15 @@ import { FaBook } from 'react-icons/fa';
 
 export default function SubjectDrillGrid({ subjects = [], isPremium, onSelectSubject }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 select-none">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-            <FaBook className="text-orange-600" /> Quick Practice by Subject
+          <h2 className="text-xl font-black text-white flex items-center gap-2">
+            <FaBook className="text-orange-500" /> Quick Practice by Subject
           </h2>
-          <p className="text-xs text-gray-500 mt-0.5">Click any subject to launch a targeted single-subject drill.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Click any subject to launch a targeted single-subject drill.</p>
         </div>
-        <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-200">
+        <span className="text-xs font-bold text-gray-400 bg-[#141822] px-3 py-1.5 rounded-xl border border-gray-800">
           {subjects.length} Subjects Available
         </span>
       </div>
@@ -22,28 +22,28 @@ export default function SubjectDrillGrid({ subjects = [], isPremium, onSelectSub
           <div
             key={sub.id}
             onClick={() => onSelectSubject(sub)}
-            className="bg-white hover:border-orange-500 p-5 rounded-2xl border border-gray-200 shadow-sm transition hover:-translate-y-1 group cursor-pointer flex flex-col justify-between h-40"
+            className="bg-[#141822] hover:border-orange-500 p-5 rounded-2xl border border-gray-800 shadow-sm transition hover:-translate-y-1 group cursor-pointer flex flex-col justify-between h-40"
           >
             <div className="flex justify-between items-start">
-              <span className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 font-black text-xs flex items-center justify-center border border-orange-100 group-hover:bg-orange-600 group-hover:text-white transition">
+              <span className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 font-black text-xs flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition">
                 {sub.code || 'OAU'}
               </span>
               {!isPremium ? (
-                <span className="text-[10px] font-bold text-gray-500 uppercase bg-gray-100 px-2.5 py-0.5 rounded-md">
+                <span className="text-[10px] font-bold text-gray-400 uppercase bg-[#0f1117] border border-gray-800 px-2.5 py-0.5 rounded-md">
                   Free Trial
                 </span>
               ) : (
-                <span className="text-[10px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/20">
                   Pro Access
                 </span>
               )}
             </div>
 
             <div>
-              <h3 className="font-bold text-gray-900 text-sm group-hover:text-orange-600 transition line-clamp-1">
+              <h3 className="font-bold text-white text-sm group-hover:text-orange-400 transition line-clamp-1">
                 {sub.name}
               </h3>
-              <span className="text-xs text-gray-400 font-medium">Configure Quick Drill →</span>
+              <span className="text-xs text-gray-500 font-medium">Configure Quick Drill →</span>
             </div>
           </div>
         ))}
