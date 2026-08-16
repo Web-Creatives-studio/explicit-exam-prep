@@ -43,7 +43,7 @@ export default function AdminLayoutClient({ children, userProfile }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-gray-100 flex">
+    <div className="min-h-screen bg-[#0f1117] text-gray-100 flex select-none">
       {/* Mobile Drawer Backdrop */}
       {sidebarOpen && (
         <div 
@@ -66,7 +66,7 @@ export default function AdminLayoutClient({ children, userProfile }) {
               </div>
               <div>
                 <span className="font-black text-lg tracking-tight text-white block leading-tight">
-                  OAU<span className="text-orange-500">CBT</span>
+                  TOPPERS<span className="text-orange-500">CBT</span>
                 </span>
                 <span className="text-[10px] font-bold tracking-widest text-orange-400 uppercase bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 flex items-center gap-1 w-fit mt-0.5">
                   <FaShieldAlt className="text-[9px]" /> Administrator
@@ -75,7 +75,7 @@ export default function AdminLayoutClient({ children, userProfile }) {
             </Link>
             <button 
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-gray-400 hover:text-white"
+              className="lg:hidden text-gray-400 hover:text-white cursor-pointer"
             >
               <FaTimes />
             </button>
@@ -124,7 +124,7 @@ export default function AdminLayoutClient({ children, userProfile }) {
             </Link>
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/10 transition"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold text-red-400 hover:bg-red-500/10 transition cursor-pointer"
             >
               <FaSignOutAlt className="text-xs" /> Log Out
             </button>
@@ -137,7 +137,7 @@ export default function AdminLayoutClient({ children, userProfile }) {
         <header className="h-16 border-b border-gray-800/80 bg-[#161922]/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 text-gray-400 hover:text-white focus:outline-none"
+            className="lg:hidden p-2 text-gray-400 hover:text-white focus:outline-none cursor-pointer"
           >
             <FaBars className="text-lg" />
           </button>
@@ -148,7 +148,7 @@ export default function AdminLayoutClient({ children, userProfile }) {
           </div>
 
           <div className="text-xs font-mono font-semibold text-orange-400 bg-orange-500/10 px-3 py-1 rounded-lg border border-orange-500/20">
-            Role: {userProfile?.role}
+            Role: {userProfile?.role || 'admin'}
           </div>
         </header>
 

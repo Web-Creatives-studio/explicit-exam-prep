@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '../utils/supabase/client';
 import { toast } from 'react-toastify';
-import { FaCrown, FaTimes, FaWhatsapp, FaKey, FaSpinner, FaCheckCircle } from 'react-icons/fa';
+import { FaCrown, FaTimes, FaWhatsapp, FaKey, FaSpinner, FaCheckCircle, FaTag } from 'react-icons/fa';
 
 export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
   const supabase = createClient();
@@ -12,12 +12,13 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
 
   if (!isOpen) return null;
 
-  const adminPhoneNumber = '2348160874970'; // Replace with your WhatsApp contact
+  const adminPhoneNumber = '2348160874970'; // WhatsApp contact
   const candidateName = profile?.full_name || 'Candidate';
   const targetDept = profile?.department || 'OAU Post-UTME';
+  const proPrice = '₦4,000'; // Standard one-time activation price
 
   const whatsappMessage = encodeURIComponent(
-    `Hello Admin, I am ${candidateName} preparing for ${targetDept}. I would like to get a PRO Access Code to unlock the full OAU CBT portal.`
+    `Hello Admin, I am ${candidateName} preparing for ${targetDept}. I would like to pay ${proPrice} to get a TOPPERS CBT PRO Access Code.`
   );
   const whatsappUrl = `https://wa.me/${adminPhoneNumber}?text=${whatsappMessage}`;
 
@@ -70,7 +71,7 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
       <div className="bg-[#141822] border border-orange-500/30 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl text-white relative animate-in fade-in zoom-in duration-200">
         <button
           type="button"
@@ -80,27 +81,35 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
           <FaTimes />
         </button>
 
-        {/* Header */}
+        {/* Header with Pricing Badge */}
         <div className="text-center space-y-2">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center text-orange-400 text-2xl shadow-lg shadow-orange-600/20">
             <FaCrown />
           </div>
+          
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold uppercase tracking-wider">
+            <FaTag className="text-[10px]" /> One-Time Pass: <span className="text-white font-extrabold">{proPrice}</span>
+          </div>
+
           <h3 className="text-2xl font-black tracking-tight text-white">Upgrade to PRO Pass</h3>
           <p className="text-xs text-gray-400">
-            Get unlimited 40-question mock exams, 10,000+ past questions, and full answer explanations.
+            Get unlimited 40-question mock exams, 10,000+ past questions, and full step-by-step explanations.
           </p>
         </div>
 
-        {/* WhatsApp Direct Buy Link */}
+        {/* WhatsApp Direct Buy Box */}
         <div className="bg-[#0b0e14] border border-gray-800 p-4 rounded-2xl space-y-3">
-          <div className="text-xs font-bold text-gray-300">Don't have an access code yet?</div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-300">Don't have an access code?</span>
+            <span className="text-xs font-black text-emerald-400">{proPrice}</span>
+          </div>
           <a
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl transition shadow-lg shadow-emerald-600/25 text-xs flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold rounded-xl transition shadow-lg shadow-emerald-600/25 text-xs flex items-center justify-center gap-2 cursor-pointer"
           >
-            <FaWhatsapp className="text-base" /> Chat Admin on WhatsApp to Buy
+            <FaWhatsapp className="text-base" /> Pay {proPrice} & Get Code on WhatsApp
           </a>
         </div>
 
@@ -126,7 +135,7 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-bold rounded-xl transition text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-orange-600/20"
+            className="w-full py-3 bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:bg-orange-400 text-white font-bold rounded-xl transition text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-orange-600/20"
           >
             {loading ? (
               <>

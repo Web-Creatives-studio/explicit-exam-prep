@@ -42,13 +42,15 @@ export default function SignUpPage() {
     try {
       // 1. Sign up user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
           data: {
             full_name: fullName,
             department: department,
+            role: 'student',
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/practice/single`,
         },
       });
 
@@ -71,7 +73,7 @@ export default function SignUpPage() {
           console.error('Profile insertion error:', profileError);
         }
 
-        toast.success('Registration successful! Welcome to OAU CBT Portal.');
+        toast.success('Registration successful! Welcome to TOPPERS CBT.');
         
         // 3. Navigate straight to practice drills
         window.location.href = '/practice/single';
@@ -83,11 +85,11 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-[#0a0c10] text-gray-100 flex selection:bg-orange-500 selection:text-white select-none">
       {/* ------------------------------------------------------------- */}
       {/* LEFT COLUMN: REGISTRATION FORM */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex-1 flex flex-col justify-center py-10 px-6 sm:px-12 lg:px-16 xl:px-20 bg-white">
+      <div className="flex-1 flex flex-col justify-center py-10 px-6 sm:px-12 lg:px-16 xl:px-20 bg-[#0a0c10] border-r border-gray-800/80">
         <div className="mx-auto w-full max-w-md">
           {/* Brand Header */}
           <div className="mb-6">
@@ -96,8 +98,8 @@ export default function SignUpPage() {
                 <FaGraduationCap className="text-2xl" />
               </div>
               <div>
-                <span className="font-black text-2xl tracking-tight text-gray-900 block leading-tight">
-                  OAU<span className="text-orange-600">CBT</span>
+                <span className="font-black text-2xl tracking-tight text-white block leading-tight">
+                  TOPPERS<span className="text-orange-500">CBT</span>
                 </span>
                 <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
                   Practice Portal
@@ -105,10 +107,10 @@ export default function SignUpPage() {
               </div>
             </Link>
 
-            <h1 className="text-3xl font-black text-gray-950 tracking-tight">
+            <h1 className="text-3xl font-black text-white tracking-tight">
               Create Account
             </h1>
-            <p className="mt-1.5 text-sm text-gray-600">
+            <p className="mt-1.5 text-sm text-gray-400">
               Join thousands of aspirants preparing for the 2026/2027 OAU Post-UTME.
             </p>
           </div>
@@ -117,11 +119,11 @@ export default function SignUpPage() {
           <form onSubmit={handleSignUp} className="space-y-3.5">
             {/* Full Name */}
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-700 mb-1">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1 tracking-wider">
                 Full Name
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
                   <FaUser className="text-sm" />
                 </div>
                 <input
@@ -130,31 +132,31 @@ export default function SignUpPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="e.g. Adebayo Ogunlesi"
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#141822] border border-gray-800 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
                 />
               </div>
             </div>
 
             {/* Target Department */}
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-700 mb-1">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1 tracking-wider">
                 Target Department / Course
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
                   <FaBuilding className="text-sm" />
                 </div>
                 <select
                   required
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition appearance-none"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#141822] border border-gray-800 rounded-xl text-sm text-white focus:outline-none focus:border-orange-500 transition appearance-none cursor-pointer"
                 >
-                  <option value="">Select your course...</option>
+                  <option value="" className="bg-[#141822] text-gray-400">Select your course...</option>
                   {OAU_FACULTIES_AND_DEPARTMENTS.map((fac) => (
-                    <optgroup key={fac.faculty} label={`Faculty of ${fac.faculty}`}>
+                    <optgroup key={fac.faculty} label={`Faculty of ${fac.faculty}`} className="bg-[#0f1117] text-orange-400 font-bold">
                       {fac.departments.map((dept) => (
-                        <option key={dept} value={dept}>
+                        <option key={dept} value={dept} className="bg-[#141822] text-white font-normal">
                           {dept}
                         </option>
                       ))}
@@ -166,11 +168,11 @@ export default function SignUpPage() {
 
             {/* Email Address */}
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-700 mb-1">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1 tracking-wider">
                 Email Address
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
                   <FaEnvelope className="text-sm" />
                 </div>
                 <input
@@ -179,18 +181,18 @@ export default function SignUpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="aspirant@gmail.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#141822] border border-gray-800 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
                 />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-700 mb-1">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1 tracking-wider">
                 Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-500">
                   <FaLock className="text-sm" />
                 </div>
                 <input
@@ -200,12 +202,12 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="w-full pl-10 pr-11 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                  className="w-full pl-10 pr-11 py-2.5 bg-[#141822] border border-gray-800 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500 transition"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-500 hover:text-gray-300 transition cursor-pointer"
                 >
                   {showPassword ? <FaEyeSlash className="text-sm" /> : <FaEye className="text-sm" />}
                 </button>
@@ -216,7 +218,7 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-extrabold py-3.5 rounded-xl transition shadow-lg shadow-orange-600/25 hover:-translate-y-0.5 text-sm"
+              className="w-full mt-2 flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 active:scale-[0.98] disabled:bg-orange-500/50 text-white font-extrabold py-3.5 rounded-xl transition shadow-lg shadow-orange-600/30 hover:-translate-y-0.5 text-sm cursor-pointer"
             >
               {loading ? (
                 <>
@@ -229,15 +231,15 @@ export default function SignUpPage() {
           </form>
 
           {/* Footer Notice */}
-          <div className="mt-6 pt-5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500">
+          <div className="mt-6 pt-5 border-t border-gray-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400">
             <span>
               Already registered?{' '}
-              <Link href="/login" className="font-bold text-orange-600 hover:text-orange-700">
+              <Link href="/login" className="font-bold text-orange-400 hover:text-orange-300">
                 Sign In here
               </Link>
             </span>
-            <div className="flex items-center gap-1 text-gray-400">
-              <FaShieldAlt className="text-[11px]" /> SSL Encrypted Portal
+            <div className="flex items-center gap-1.5 text-gray-500">
+              <FaShieldAlt className="text-[11px] text-orange-500" /> SSL Encrypted Portal
             </div>
           </div>
         </div>
@@ -246,19 +248,19 @@ export default function SignUpPage() {
       {/* ------------------------------------------------------------- */}
       {/* RIGHT COLUMN: HERO VISUAL & INSPIRATIONAL QUOTE */}
       {/* ------------------------------------------------------------- */}
-      <div className="hidden lg:flex flex-1 relative bg-[#0d0f14] overflow-hidden justify-between flex-col p-12 text-white">
+      <div className="hidden lg:flex flex-1 relative bg-[#0b0e14] overflow-hidden justify-between flex-col p-12 text-white">
         {/* Background Image with Dark Gradient Overlay */}
         <div 
-          className="absolute inset-0 bg-cover bg-center z-0 scale-105 transition duration-700"
+          className="absolute inset-0 bg-cover bg-center z-0 scale-105 transition duration-700 opacity-20"
           style={{
             backgroundImage: `url('https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1600&auto=format&fit=crop')`,
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0d0f14] via-[#0d0f14]/85 to-[#0d0f14]/60 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0c10] via-[#0a0c10]/90 to-[#0a0c10]/70 z-10" />
 
         {/* Top Header Badge */}
         <div className="relative z-20 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-bold uppercase tracking-wider text-orange-400">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-xs font-bold uppercase tracking-wider text-orange-400">
             <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
             2026/2027 Admissions Gateway
           </div>
@@ -269,7 +271,7 @@ export default function SignUpPage() {
 
         {/* Center Quote Box */}
         <div className="relative z-20 max-w-lg space-y-6 my-auto">
-          <div className="w-12 h-12 rounded-2xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center text-orange-400 text-xl">
+          <div className="w-12 h-12 rounded-2xl bg-orange-600/20 border border-orange-500/30 flex items-center justify-center text-orange-400 text-xl shadow-lg shadow-orange-600/20">
             <FaQuoteLeft />
           </div>
 
@@ -278,7 +280,7 @@ export default function SignUpPage() {
           </blockquote>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center font-bold text-white text-sm shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center font-black text-white text-sm shadow-md shadow-orange-600/30">
               OAU
             </div>
             <div>
@@ -289,7 +291,7 @@ export default function SignUpPage() {
         </div>
 
         {/* Bottom Feature Pill Counters */}
-        <div className="relative z-20 grid grid-cols-3 gap-3 pt-6 border-t border-white/10 text-xs">
+        <div className="relative z-20 grid grid-cols-3 gap-3 pt-6 border-t border-gray-800 text-xs">
           <div className="flex items-center gap-2">
             <FaCheckCircle className="text-orange-500 text-sm shrink-0" />
             <span className="text-gray-300 font-medium">Departmental Tailoring</span>
