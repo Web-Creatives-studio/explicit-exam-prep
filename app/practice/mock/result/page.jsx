@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { createClient } from '../../../utils/weeklyMockHelper';
+import { createClient } from '../../../utils/supabase/client';
 import { areResultsReleased } from '../../../utils/weeklyMockHelper';
 import { FaLock, FaCheckCircle, FaClock, FaTrophy, FaArrowLeft, FaEye } from 'react-icons/fa';
 
