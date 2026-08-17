@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { createClient } from '../../../utils/supabase/client';
-import { areResultsReleased } from '../../../utils/weeklyMockHelper';
+import { createClient } from '../../utils/supabase/client';
+import { areResultsReleased } from '../../utils/weeklyMockHelper';
 import { 
   FaArrowLeft, 
   FaCheckCircle, 
