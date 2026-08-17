@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '../../utils/supabase/client';
@@ -10,12 +10,12 @@ import {
   FaCheckCircle, 
   FaTimesCircle, 
   FaInfoCircle, 
-  FaLock, 
   FaSpinner,
-  FaBookOpen
+  FaBookOpen,
+  FaTrophy
 } from 'react-icons/fa';
 
-export default function ReviewCorrectionsPage() {
+function ReviewCorrectionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
@@ -32,45 +32,90 @@ export default function ReviewCorrectionsPage() {
         return;
       }
 
-      // 1. Fetch the test session record
+      // 1. Fetch test session record from test_sessions with foreign key relation
       const { data: sessionData, error: sessionErr } = await supabase
         .from('test_sessions')
         .select(`
-          *,
-          weekly_mocks ( active_date, title )
+          id,
+          user_id,
+          mode,
+          mock_id,
+          score,
+          total_questions,
+          time_spent_seconds,
+          answers_payload,
+          created_at,
+          weekly_mocks (
+            id,
+            title,
+            active_date
+          )
         `)
         .eq('id', sessionId)
-        .single();
+        .maybeSingle();
 
       if (sessionErr || !sessionData) {
+        console.error('Error loading session for review:', sessionErr);
         router.push('/practice/single');
         return;
       }
 
-      // 2. Check if results are released (strictly Saturday onward for weekly mocks)
-      const isWeekly = sessionData.mode === 'weekly_challenge';
-      if (isWeekly && !areResultsReleased(sessionData?.weekly_mocks?.active_date)) {
+      // 2. Lock check for weekly mock mode (Must be Saturday or released)
+      const isWeekly = sessionData.mode === 'weekly_challenge' || sessionData.mode === 'weekly_mock';
+      const released = !isWeekly || (typeof areResultsReleased === 'function' 
+        ? areResultsReleased(sessionData?.weekly_mocks?.active_date || sessionData.created_at) 
+        : true);
+
+      if (isWeekly && !released) {
         router.push(`/practice/mock/result?session_id=${sessionId}`);
         return;
       }
 
       setSession(sessionData);
 
-      // 3. Fetch questions associated with this mock challenge
+      // 3. Fetch questions linked via weekly_mock_questions if mock_id exists
       if (sessionData.mock_id) {
-        const { data: mockQData } = await supabase
+        const { data: mockQData, error: mockQErr } = await supabase
           .from('weekly_mock_questions')
           .select(`
+            question_id,
             questions (
-              id, question_text, option_a, option_b, option_c, option_d, correct_option, explanation,
+              id, 
+              question_text, 
+              option_a, 
+              option_b, 
+              option_c, 
+              option_d, 
+              correct_option, 
+              explanation,
               subjects ( name )
             )
           `)
           .eq('mock_id', sessionData.mock_id);
 
-        if (mockQData) {
+        if (!mockQErr && mockQData?.length > 0) {
           setQuestions(mockQData.map((m) => m.questions).filter(Boolean));
         }
+      }
+
+      // Fallback: If no mock_id is attached or questions are empty, query question pool
+      if (!sessionData.mock_id || questions.length === 0) {
+        const { data: fallbackQs } = await supabase
+          .from('questions')
+          .select(`
+            id, 
+            question_text, 
+            option_a, 
+            option_b, 
+            option_c, 
+            option_d, 
+            correct_option, 
+            explanation,
+            subjects ( name )
+          `)
+          .limit(sessionData.total_questions || 40);
+
+        if (fallbackQs) setQuestions(fallbackQs);
       }
 
       setLoading(false);
@@ -83,7 +128,7 @@ export default function ReviewCorrectionsPage() {
     return (
       <div className="min-h-screen bg-[#0a0c10] text-gray-400 flex flex-col items-center justify-center gap-3 select-none">
         <FaSpinner className="text-3xl text-orange-500 animate-spin" />
-        <p className="text-xs font-bold uppercase tracking-wider">Loading Exam Corrections...</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-300">Loading Exam Corrections...</p>
       </div>
     );
   }
@@ -94,8 +139,8 @@ export default function ReviewCorrectionsPage() {
     <div className="min-h-screen bg-[#0a0c10] text-gray-100 py-8 px-4 sm:px-8 select-none selection:bg-orange-500 selection:text-white">
       <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* Top Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#141822] border border-gray-800 p-5 rounded-3xl">
+        {/* Top Header Card */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#141822] border border-gray-800 p-5 sm:p-6 rounded-3xl shadow-xl">
           <div>
             <Link 
               href={`/practice/mock/result?session_id=${session?.id}`}
@@ -107,7 +152,7 @@ export default function ReviewCorrectionsPage() {
               <FaBookOpen className="text-orange-500" /> Exam Corrections & Explanations
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              {session?.weekly_mocks?.title || 'Weekly Mock Challenge'}
+              {session?.weekly_mocks?.title || (session?.mode === 'weekly_challenge' ? 'Weekly Mock Challenge' : 'Practice Drill Review')}
             </p>
           </div>
 
@@ -130,7 +175,10 @@ export default function ReviewCorrectionsPage() {
         <div className="space-y-6">
           {questions.map((q, idx) => {
             const candidateAnswer = answersPayload[idx];
-            const isCorrect = candidateAnswer && candidateAnswer === q.correct_option?.toUpperCase();
+            const isCorrect = 
+              candidateAnswer && 
+              q.correct_option && 
+              candidateAnswer.trim().toUpperCase() === q.correct_option.trim().toUpperCase();
 
             return (
               <div 
@@ -160,7 +208,7 @@ export default function ReviewCorrectionsPage() {
                   </div>
                 </div>
 
-                {/* Question Body */}
+                {/* Question Text */}
                 <div className="text-sm sm:text-base font-medium text-white leading-relaxed">
                   {q.question_text}
                 </div>
@@ -173,7 +221,7 @@ export default function ReviewCorrectionsPage() {
                     if (!optText) return null;
 
                     const isChosen = candidateAnswer === opt;
-                    const isRightAnswer = q.correct_option?.toUpperCase() === opt;
+                    const isRightAnswer = q.correct_option?.trim().toUpperCase() === opt;
 
                     let optionStyle = 'bg-[#0b0e14] border-gray-800 text-gray-300';
                     if (isRightAnswer) {
@@ -207,7 +255,7 @@ export default function ReviewCorrectionsPage() {
                         )}
                         {isChosen && !isRightAnswer && (
                           <span className="text-[10px] font-black uppercase text-red-400 bg-red-500/20 px-2 py-0.5 rounded border border-red-500/30">
-                            Your Choice
+                            Your Selection
                           </span>
                         )}
                       </div>
@@ -215,13 +263,13 @@ export default function ReviewCorrectionsPage() {
                   })}
                 </div>
 
-                {/* Explanation Block */}
+                {/* Step-by-Step Explanation Block */}
                 <div className="mt-4 p-4 bg-[#0b0e14] rounded-2xl border border-gray-800 space-y-1.5">
                   <div className="text-xs font-bold text-orange-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <FaInfoCircle /> Explanation:
+                    <FaInfoCircle /> Step-by-Step Explanation:
                   </div>
                   <p className="text-xs text-gray-300 leading-relaxed">
-                    {q.explanation || 'No step-by-step explanation available for this question.'}
+                    {q.explanation || 'No detailed explanation recorded for this question.'}
                   </p>
                 </div>
 
@@ -230,7 +278,32 @@ export default function ReviewCorrectionsPage() {
           })}
         </div>
 
+        {/* Bottom Floating Navigation */}
+        <div className="flex justify-center pt-4">
+          <Link
+            href="/history"
+            className="px-6 py-3 bg-[#141822] hover:bg-gray-800 border border-gray-800 text-gray-200 hover:text-white font-bold rounded-2xl text-xs flex items-center gap-2 transition shadow-lg shadow-black/40"
+          >
+            <FaTrophy className="text-yellow-400" /> Return to Performance History
+          </Link>
+        </div>
+
       </div>
     </div>
+  );
+}
+
+export default function ReviewCorrectionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#0a0c10] text-gray-400 flex flex-col items-center justify-center gap-3 select-none">
+          <FaSpinner className="text-3xl text-orange-500 animate-spin" />
+          <p className="text-xs font-bold uppercase tracking-wider">Loading Exam Corrections...</p>
+        </div>
+      }
+    >
+      <ReviewCorrectionsContent />
+    </Suspense>
   );
 }
