@@ -4,6 +4,18 @@ import MockExamEngine from './MockEngine';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Server-side Fisher-Yates Random Shuffler
+ */
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export default async function MockChallengePage() {
   const supabase = await createClient();
 
@@ -23,16 +35,15 @@ export default async function MockChallengePage() {
     .eq('id', user.id)
     .single();
 
+  const isPremium = Boolean(profile?.is_premium);
+
   // 3. Fetch All Active Subjects
   const { data: allSubjects } = await supabase
     .from('subjects')
     .select('id, name, code')
     .order('name', { ascending: true });
 
-  const isPremium = Boolean(profile?.is_premium);
-  const questionsPerSubject = isPremium ? 10 : 5;
-
-  // 4. Fetch subject questions concurrently using Promise.all for high performance
+  // 4. Fetch questions based on tier and pre-shuffle on server
   const subjectsWithQuestions = await Promise.all(
     (allSubjects || []).map(async (sub) => {
       let query = supabase
@@ -42,13 +53,18 @@ export default async function MockChallengePage() {
         )
         .eq('subject_id', sub.id);
 
+      // If user is Free, restrict to free question pool
       if (!isPremium) {
         query = query.eq('is_free', true);
       }
 
-      const { data: qData } = await query.limit(questionsPerSubject);
+      const { data: qData, error: qErr } = await query;
 
-      const enriched = (qData || []).map((q) => ({
+      if (qErr) {
+        console.error(`Error fetching questions for ${sub.name}:`, qErr);
+      }
+
+      const randomizedPool = shuffleArray(qData || []).map((q) => ({
         ...q,
         subject_name: sub.name,
         subject_code: sub.code,
@@ -56,7 +72,7 @@ export default async function MockChallengePage() {
 
       return {
         ...sub,
-        questions: enriched,
+        questions: randomizedPool,
       };
     })
   );

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '../utils/supabase/client';
 import { toast } from 'react-toastify';
-import { FaCrown, FaTimes, FaWhatsapp, FaKey, FaSpinner, FaCheckCircle, FaTag } from 'react-icons/fa';
+import { FaCrown, FaTimes, FaWhatsapp, FaKey, FaSpinner, FaTag } from 'react-icons/fa';
 
 export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
   const supabase = createClient();
@@ -12,10 +12,10 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
 
   if (!isOpen) return null;
 
-  const adminPhoneNumber = '2348160874970'; // WhatsApp contact
+  const adminPhoneNumber = '2348160874970';
   const candidateName = profile?.full_name || 'Candidate';
   const targetDept = profile?.department || 'OAU Post-UTME';
-  const proPrice = '₦4,000'; // Standard one-time activation price
+  const proPrice = '₦4,000';
 
   const whatsappMessage = encodeURIComponent(
     `Hello Admin, I am ${candidateName} preparing for ${targetDept}. I would like to pay ${proPrice} to get a TOPPERS CBT PRO Access Code.`
@@ -24,7 +24,9 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
 
   const handleRedeem = async (e) => {
     e.preventDefault();
-    if (!accessCode.trim()) {
+    const cleanCode = accessCode.trim().toUpperCase();
+
+    if (!cleanCode) {
       toast.error('Please enter an access voucher code.');
       return;
     }
@@ -32,39 +34,68 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
     setLoading(true);
 
     try {
-      // 1. Verify code in access_codes table
-      const { data: codeData, error: codeError } = await supabase
-        .from('access_codes')
-        .select('*')
-        .eq('code', accessCode.trim().toUpperCase())
-        .eq('is_used', false)
-        .single();
-
-      if (codeError || !codeData) {
-        throw new Error('Invalid or already redeemed access code.');
+      // 1. Resolve current user ID
+      let currentUserId = profile?.id;
+      if (!currentUserId) {
+        const { data: authData } = await supabase.auth.getUser();
+        currentUserId = authData?.user?.id;
       }
 
-      // 2. Mark code as used
-      await supabase
+      if (!currentUserId) {
+        throw new Error('You must be logged in to redeem a code.');
+      }
+
+      // 2. Look up the voucher code using maybeSingle()
+      const { data: codeData, error: codeFetchErr } = await supabase
+        .from('access_codes')
+        .select('id, code, is_used')
+        .eq('code', cleanCode)
+        .eq('is_used', false)
+        .maybeSingle();
+
+      if (codeFetchErr) throw codeFetchErr;
+
+      if (!codeData) {
+        toast.error('Invalid, expired, or already used access code.');
+        setLoading(false);
+        return;
+      }
+
+      // 3. Mark code as used in access_codes table
+      const { error: updateCodeErr } = await supabase
         .from('access_codes')
         .update({
           is_used: true,
-          used_by: profile?.id,
+          used_by: currentUserId,
           used_at: new Date().toISOString(),
         })
         .eq('id', codeData.id);
 
-      // 3. Upgrade candidate profile to PRO
-      await supabase
+      if (updateCodeErr) {
+        console.error('Failed to update access_codes:', updateCodeErr);
+        throw updateCodeErr;
+      }
+
+      // 4. Upgrade student profile to PRO
+      const { error: profileErr } = await supabase
         .from('profiles')
-        .update({ is_premium: true })
-        .eq('id', profile?.id);
+        .update({
+          is_premium: true,
+          last_active_at: new Date().toISOString(),
+        })
+        .eq('id', currentUserId);
+
+      if (profileErr) {
+        console.error('Failed to update profile:', profileErr);
+        throw profileErr;
+      }
 
       toast.success('PRO Pass activated successfully! Enjoy full access.');
       if (onRedeemed) onRedeemed();
-      onClose();
+      if (onClose) onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to redeem code.');
+      console.error('Redemption error:', err);
+      toast.error(err.message || 'Failed to redeem voucher code.');
     } finally {
       setLoading(false);
     }
@@ -127,7 +158,7 @@ export default function RedeemModal({ isOpen, onClose, profile, onRedeemed }) {
               required
               value={accessCode}
               onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
-              placeholder="e.g. OAU-PRO-XXXX"
+              placeholder="e.g. OAU-BW867O"
               className="w-full pl-10 pr-4 py-3 bg-[#0b0e14] border border-gray-800 rounded-xl text-sm font-mono tracking-wider text-white focus:outline-none focus:border-orange-500 transition"
             />
           </div>

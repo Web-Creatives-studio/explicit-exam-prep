@@ -37,55 +37,103 @@ function AdminDashboardContent() {
     setLoading(true);
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
-    // 1. Fetch KPI counts concurrently
-    const [
-      { count: activeCount },
-      { count: totalUserCount },
-      { count: premiumUserCount },
-      { count: questionCount },
-      { count: unusedCodeCount },
-      { count: mockCount },
-      { data: recentSessions }
-    ] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', fifteenMinsAgo),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).neq('role', 'admin'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
-      supabase.from('questions').select('*', { count: 'exact', head: true }),
-      supabase.from('access_codes').select('*', { count: 'exact', head: true }).eq('is_used', false),
-      supabase.from('mock_sessions').select('*', { count: 'exact', head: true }),
-      supabase.from('mock_sessions')
-        .select(`
-          id, mode, score, total_questions, time_spent_seconds, created_at, user_id,
-          profiles:user_id (id, full_name, department)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(6)
-    ]);
+    try {
+      const [
+        { count: activeCount },
+        { count: totalUserCount },
+        { count: premiumUserCount },
+        { count: questionCount },
+        { count: unusedCodeCount },
+        { count: mockCount },
+        { data: recentSessions, error: sessionErr }
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', fifteenMinsAgo),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).neq('role', 'admin'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
+        supabase.from('questions').select('*', { count: 'exact', head: true }),
+        supabase.from('access_codes').select('*', { count: 'exact', head: true }).eq('is_used', false),
+        supabase.from('mock_sessions').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('mock_sessions')
+          .select(`
+            id,
+            mode,
+            subject_id,
+            score,
+            total_questions,
+            time_spent_seconds,
+            created_at,
+            user_id,
+            profiles (
+              id,
+              full_name,
+              department
+            ),
+            subjects (
+              id,
+              name,
+              code
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(8)
+      ]);
 
-    setStats({
-      activeNow: activeCount || 0,
-      totalStudents: totalUserCount || 0,
-      premiumStudents: premiumUserCount || 0,
-      totalQuestions: questionCount || 0,
-      unusedCodes: unusedCodeCount || 0,
-      totalMockSessions: mockCount || 0,
-    });
+      if (sessionErr) {
+        console.error('Error fetching recent sessions:', sessionErr);
+      }
 
-    // Normalize and map profiles safely (whether array or object)
-    const normalizedAttempts = (recentSessions || []).map((session) => {
-      const profileData = Array.isArray(session.profiles) 
-        ? session.profiles[0] 
-        : session.profiles;
+      setStats({
+        activeNow: activeCount || 0,
+        totalStudents: totalUserCount || 0,
+        premiumStudents: premiumUserCount || 0,
+        totalQuestions: questionCount || 0,
+        unusedCodes: unusedCodeCount || 0,
+        totalMockSessions: mockCount || 0,
+      });
 
-      return {
-        ...session,
-        candidateName: profileData?.full_name || 'Anonymous Candidate',
-        candidateDepartment: profileData?.department || 'OAU Post-UTME',
-      };
-    });
+      const normalizedAttempts = (recentSessions || []).map((session) => {
+        const profileObj = Array.isArray(session.profiles)
+          ? session.profiles[0]
+          : session.profiles;
 
-    setRecentAttempts(normalizedAttempts);
-    setLoading(false);
+        const subjectObj = Array.isArray(session.subjects)
+          ? session.subjects[0]
+          : session.subjects;
+
+        let displayMode = 'Practice Drill';
+        let badgeColor = 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+
+        if (session.mode === 'single_subject') {
+          displayMode = subjectObj?.name || 'Single Subject';
+          badgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        } else if (session.mode === 'full_mock') {
+          displayMode = 'Full 4-Subject Mock';
+          badgeColor = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+        } else if (session.mode === 'weekly_mock') {
+          displayMode = 'Weekly Challenge';
+          badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        }
+
+        return {
+          id: session.id,
+          candidateName: profileObj?.full_name || 'Candidate',
+          candidateDepartment: profileObj?.department || 'OAU Post-UTME',
+          modeTitle: displayMode,
+          badgeColor,
+          score: session.score,
+          total_questions: session.total_questions,
+          time_spent_seconds: session.time_spent_seconds,
+          created_at: session.created_at,
+        };
+      });
+
+      setRecentAttempts(normalizedAttempts);
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const statCards = [
@@ -104,6 +152,7 @@ function AdminDashboardContent() {
         <p className="text-gray-400 text-xs sm:text-sm mt-1">Real-time candidate engagement, test submissions, and license metrics.</p>
       </div>
 
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {statCards.map((c) => {
           const Icon = c.icon;
@@ -123,6 +172,7 @@ function AdminDashboardContent() {
         })}
       </div>
 
+      {/* Admin Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Link 
           href="/admin/upload"
@@ -157,12 +207,12 @@ function AdminDashboardContent() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm text-gray-300 min-w-[600px]">
+          <table className="w-full text-left text-xs sm:text-sm text-gray-300 min-w-[650px]">
             <thead className="bg-[#0b0e14] text-[11px] uppercase font-bold text-gray-400 border-b border-gray-800">
               <tr>
                 <th className="p-3.5 rounded-l-xl">Student</th>
                 <th className="p-3.5">Department</th>
-                <th className="p-3.5">Mode</th>
+                <th className="p-3.5">Mode / Subject</th>
                 <th className="p-3.5">Score</th>
                 <th className="p-3.5">Time Spent</th>
                 <th className="p-3.5 rounded-r-xl text-right">Time</th>
@@ -179,16 +229,34 @@ function AdminDashboardContent() {
                   </td>
                 </tr>
               ) : (
-                recentAttempts.map((row) => (
-                  <tr key={row.id} className="hover:bg-gray-800/20 transition">
-                    <td className="p-3.5 font-bold text-white">{row.candidateName}</td>
-                    <td className="p-3.5 text-xs text-gray-400">{row.candidateDepartment}</td>
-                    <td className="p-3.5 capitalize text-xs text-orange-400 font-bold">{row.mode?.replace('_', ' ')}</td>
-                    <td className="p-3.5 font-mono font-bold text-white">{row.score} / {row.total_questions}</td>
-                    <td className="p-3.5 text-xs text-gray-400">{Math.floor((row.time_spent_seconds || 0) / 60)}m {(row.time_spent_seconds || 0) % 60}s</td>
-                    <td className="p-3.5 text-xs text-gray-500 text-right">{new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                  </tr>
-                ))
+                recentAttempts.map((row) => {
+                  const percentage = Math.round(
+                    ((row.score || 0) / (row.total_questions || 1)) * 100
+                  );
+
+                  return (
+                    <tr key={row.id} className="hover:bg-gray-800/20 transition">
+                      <td className="p-3.5 font-bold text-white">{row.candidateName}</td>
+                      <td className="p-3.5 text-xs text-gray-400">{row.candidateDepartment}</td>
+                      <td className="p-3.5">
+                        <span className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${row.badgeColor}`}>
+                          {row.modeTitle}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-mono">
+                        <span className="font-bold text-orange-400">{row.score}</span>
+                        <span className="text-gray-500 font-normal"> / {row.total_questions}</span>
+                        <span className="text-[10px] text-gray-400 ml-1.5 font-mono">({percentage}%)</span>
+                      </td>
+                      <td className="p-3.5 text-xs text-gray-400 font-mono">
+                        {Math.floor((row.time_spent_seconds || 0) / 60)}m {(row.time_spent_seconds || 0) % 60}s
+                      </td>
+                      <td className="p-3.5 text-xs text-gray-500 text-right font-mono">
+                        {new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
               {recentAttempts.length === 0 && !loading && (
                 <tr>

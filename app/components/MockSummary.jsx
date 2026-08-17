@@ -81,10 +81,10 @@ export default function MockSummary({ profile, results, activeSubjects = [], onL
             <FaRedo /> Retake Mock
           </button>
           <Link
-            href="/practice/leaderboard"
+            href="/practice/single"
             className="flex-1 py-3.5 bg-[#0f1117] hover:bg-gray-800 border border-gray-800 text-white font-bold rounded-xl transition text-center flex items-center justify-center gap-2 text-xs sm:text-sm"
           >
-            <FaTrophy className="text-yellow-500" /> Leaderboard
+            <FaTrophy className="text-yellow-500" /> Dashboard
           </Link>
         </div>
       </div>

@@ -82,7 +82,11 @@ export default function QuickSessionClient({
     let totalScore = 0;
 
     questions.forEach((q, idx) => {
-      if (answers[idx] === q.correct_option) {
+      if (
+        answers[idx] &&
+        q.correct_option &&
+        answers[idx].trim().toUpperCase() === q.correct_option.trim().toUpperCase()
+      ) {
         totalScore += 1;
       }
     });
@@ -102,16 +106,30 @@ export default function QuickSessionClient({
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
 
-    if (profile?.id) {
-      await supabase.from('mock_sessions').insert({
-        user_id: profile.id,
-        mode: 'single_subject',
-        score: totalScore,
-        total_questions: questions.length,
-        time_spent_seconds: elapsed,
-      });
+    // 1. Resolve user ID safely
+    let currentUserId = profile?.id;
+    if (!currentUserId) {
+      const { data: authData } = await supabase.auth.getUser();
+      currentUserId = authData?.user?.id;
     }
-  }, [questions, answers, timed, TOTAL_TIME_SECONDS, timeLeft, timeSpent, profile, supabase]);
+
+    // 2. Insert record adhering to check constraint (mode: 'single_subject') & foreign key (subject_id)
+    if (currentUserId) {
+      const { error: insertErr } = await supabase.from('mock_sessions').insert({
+        user_id: currentUserId,
+        mode: 'single_subject',
+        subject_id: subject?.id || null,
+        score: Number(totalScore) || 0,
+        total_questions: Number(questions.length) || 0,
+        time_spent_seconds: Number(elapsed) || 0,
+      });
+
+      if (insertErr) {
+        console.error('Failed to record mock session:', insertErr);
+        toast.error('Could not save test score to history.');
+      }
+    }
+  }, [questions, answers, timed, TOTAL_TIME_SECONDS, timeLeft, timeSpent, profile, subject, supabase]);
 
   // Timer Tick
   useEffect(() => {
@@ -145,13 +163,13 @@ export default function QuickSessionClient({
   // 1. Empty state
   if (questions.length === 0) {
     return (
-      <div className="bg-[#141822] border border-gray-800 rounded-3xl p-8 text-center space-y-4 max-w-md mx-auto">
+      <div className="bg-[#141822] border border-gray-800 rounded-3xl p-8 text-center space-y-4 max-w-md mx-auto select-none">
         <div className="w-12 h-12 rounded-2xl bg-orange-600/20 text-orange-400 flex items-center justify-center text-xl mx-auto">
           <FaBookOpen />
         </div>
         <h2 className="text-xl font-bold text-white">No Questions Found</h2>
         <p className="text-xs text-gray-400 leading-relaxed">
-          There are currently no active questions uploaded for <strong>{subject?.name}</strong>.
+          There are currently no active questions uploaded for <strong>{subject?.name || 'this subject'}</strong>.
         </p>
         <Link
           href="/practice/single"
@@ -213,7 +231,7 @@ export default function QuickSessionClient({
 
       {/* Submit Modal */}
       {showSubmitModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 select-none">
           <div className="bg-[#141822] border border-gray-800 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl text-white relative animate-in fade-in zoom-in duration-200">
             <button
               type="button"
@@ -286,7 +304,7 @@ export default function QuickSessionClient({
 
       {/* Quit Modal */}
       {showQuitModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 select-none">
           <div className="bg-[#141822] border border-red-500/30 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl text-white relative animate-in fade-in zoom-in duration-200">
             <button
               type="button"

@@ -17,7 +17,7 @@ export default async function StudentHomePage() {
     redirect('/login?next=/practice/single');
   }
 
-  // 2. Fetch Profile, Subjects, and Recent Sessions concurrently via Promise.all
+  // 2. Fetch Profile, Subjects, and Recent Sessions (with joined Subject details)
   const [profileRes, subjectsRes, recentSessionsRes] = await Promise.all([
     supabase
       .from('profiles')
@@ -30,10 +30,23 @@ export default async function StudentHomePage() {
       .order('name', { ascending: true }),
     supabase
       .from('mock_sessions')
-      .select('id, mode, score, total_questions, time_spent_seconds, created_at')
+      .select(`
+        id, 
+        mode, 
+        subject_id,
+        score, 
+        total_questions, 
+        time_spent_seconds, 
+        created_at,
+        subjects (
+          id,
+          name,
+          code
+        )
+      `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(6),
   ]);
 
   const profile = profileRes?.data || null;

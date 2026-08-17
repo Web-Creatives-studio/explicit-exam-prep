@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FaBolt, FaTrophy, FaWhatsapp, FaArrowRight } from 'react-icons/fa';
+import { FaBolt, FaHistory, FaWhatsapp, FaArrowRight } from 'react-icons/fa';
 
 export default function DashboardLaunchers({ onOpenMockModal }) {
   return (
@@ -27,18 +27,18 @@ export default function DashboardLaunchers({ onOpenMockModal }) {
         </div>
       </div>
 
-      {/* 2. Nationwide Leaderboard Trigger */}
+      {/* 2. Personal Test History Trigger */}
       <Link
-        href="/practice/leaderboard"
-        className="group bg-gradient-to-br from-[#161922] to-[#12141c] hover:border-yellow-500/50 active:scale-[0.98] border border-gray-800 p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl transition-all duration-200 shadow-md flex items-center justify-between gap-3"
+        href="/practice/history"
+        className="group bg-gradient-to-br from-[#161922] to-[#12141c] hover:border-orange-500/50 active:scale-[0.98] border border-gray-800 p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl transition-all duration-200 shadow-md flex items-center justify-between gap-3"
       >
         <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
           <div className="flex items-center gap-2 text-white font-black text-sm sm:text-base lg:text-lg tracking-tight">
-            <FaTrophy className="text-yellow-500 shrink-0 text-sm sm:text-base" />
-            <span className="truncate">Live Leaderboard</span>
+            <FaHistory className="text-orange-500 shrink-0 text-sm sm:text-base" />
+            <span className="truncate">Test History</span>
           </div>
           <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed line-clamp-2 sm:line-clamp-none">
-            Compare your score and speed against aspirants across Nigeria.
+            Review your past mock scores, drill accuracy, and performance analytics.
           </p>
         </div>
 
@@ -47,7 +47,7 @@ export default function DashboardLaunchers({ onOpenMockModal }) {
         </div>
       </Link>
 
-      {/* 3. Aspirants WhatsApp Community Group (Spans full width on tablet) */}
+      {/* 3. Aspirants WhatsApp Community Group */}
       <a
         href="https://chat.whatsapp.com/Fg3IVBojRafBlIcHF25gTH"
         target="_blank"
