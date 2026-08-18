@@ -17,7 +17,7 @@ export default async function StudentHomePage() {
     redirect('/login?next=/practice/single');
   }
 
-  // 2. Fetch Profile, Subjects, Recent Sessions, and Available Question Years in Parallel
+  // 2. Fetch Profile, Subjects, Recent Mock Sessions, and Available Question Years in Parallel
   const [profileRes, subjectsRes, recentSessionsRes, yearsRes] = await Promise.all([
     supabase
       .from('profiles')
@@ -29,20 +29,19 @@ export default async function StudentHomePage() {
       .select('id, name, code')
       .order('name', { ascending: true }),
     supabase
-      .from('test_sessions')
+      .from('mock_sessions')
       .select(`
         id, 
         mode, 
-        mock_id,
+        subject_id,
         score, 
         total_questions, 
         time_spent_seconds, 
-        answers_payload,
         created_at,
-        weekly_mocks (
+        subjects (
           id,
-          title,
-          active_date
+          name,
+          code
         )
       `)
       .eq('user_id', user.id)
@@ -71,7 +70,7 @@ export default async function StudentHomePage() {
         <DashboardClientView 
           profile={profile} 
           subjects={subjects} 
-          recentSessions={recentSessions}
+          recentSessions={recentSessions} 
           availableYears={uniqueYears}
         />
       </main>
