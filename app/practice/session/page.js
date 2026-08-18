@@ -33,6 +33,7 @@ export default async function QuickSessionPage({ searchParams }) {
   const subjectId = resolvedParams?.subjectId;
   const count = Math.min(Math.max(Number(resolvedParams?.count) || 10, 5), 50);
   const timed = resolvedParams?.timed !== 'false';
+  const year = resolvedParams?.year || 'all';
 
   if (!subjectId) {
     redirect('/practice/single');
@@ -61,7 +62,7 @@ export default async function QuickSessionPage({ searchParams }) {
 
   const isPremium = Boolean(profile?.is_premium);
 
-  // 4. Fetch the full pool of questions for this subject respecting tier privileges
+  // 4. Fetch questions respecting tier privileges and year selection
   let query = supabase
     .from('questions')
     .select(
@@ -69,7 +70,12 @@ export default async function QuickSessionPage({ searchParams }) {
     )
     .eq('subject_id', subjectId);
 
-  // Free users only get free questions; Premium users get the entire bank
+  // Year filter
+  if (year && year !== 'all') {
+    query = query.eq('year', parseInt(year, 10));
+  }
+
+  // Free users safeguard
   if (!isPremium) {
     query = query.eq('is_free', true);
   }
@@ -80,7 +86,7 @@ export default async function QuickSessionPage({ searchParams }) {
     console.error('Error fetching questions:', error);
   }
 
-  // 5. Randomly shuffle the pool and slice the requested count
+  // 5. Randomly shuffle the pool and slice requested count
   const randomizedQuestions = shuffleArray(questionPool || []).slice(0, count);
 
   return (
@@ -93,6 +99,7 @@ export default async function QuickSessionPage({ searchParams }) {
           timed={timed}
           questionCount={count}
           isPremium={isPremium}
+          year={year}
         />
       </main>
     </div>

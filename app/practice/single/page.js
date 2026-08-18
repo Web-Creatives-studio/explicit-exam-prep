@@ -17,8 +17,8 @@ export default async function StudentHomePage() {
     redirect('/login?next=/practice/single');
   }
 
-  // 2. Fetch Profile, Subjects, and Recent Sessions (with joined Subject details)
-  const [profileRes, subjectsRes, recentSessionsRes] = await Promise.all([
+  // 2. Fetch Profile, Subjects, Recent Sessions, and Available Question Years in Parallel
+  const [profileRes, subjectsRes, recentSessionsRes, yearsRes] = await Promise.all([
     supabase
       .from('profiles')
       .select('*')
@@ -26,32 +26,43 @@ export default async function StudentHomePage() {
       .single(),
     supabase
       .from('subjects')
-      .select('*')
+      .select('id, name, code')
       .order('name', { ascending: true }),
     supabase
-      .from('mock_sessions')
+      .from('test_sessions')
       .select(`
         id, 
         mode, 
-        subject_id,
+        mock_id,
         score, 
         total_questions, 
         time_spent_seconds, 
+        answers_payload,
         created_at,
-        subjects (
+        weekly_mocks (
           id,
-          name,
-          code
+          title,
+          active_date
         )
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(6),
+    // Fetch unique years from questions table
+    supabase
+      .from('questions')
+      .select('year')
+      .not('year', 'is', null)
+      .order('year', { ascending: false }),
   ]);
 
   const profile = profileRes?.data || null;
   const subjects = subjectsRes?.data || [];
   const recentSessions = recentSessionsRes?.data || [];
+
+  // Extract unique sorted years
+  const rawYears = yearsRes?.data?.map((q) => q.year).filter(Boolean) || [];
+  const uniqueYears = Array.from(new Set(rawYears)).sort((a, b) => b - a);
 
   return (
     <div className="min-h-screen bg-[#0a0c10] text-gray-100 flex flex-col selection:bg-orange-500 selection:text-white">
@@ -60,7 +71,8 @@ export default async function StudentHomePage() {
         <DashboardClientView 
           profile={profile} 
           subjects={subjects} 
-          recentSessions={recentSessions} 
+          recentSessions={recentSessions}
+          availableYears={uniqueYears}
         />
       </main>
     </div>

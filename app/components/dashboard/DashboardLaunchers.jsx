@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { FaBolt, FaHistory, FaWhatsapp, FaArrowRight } from 'react-icons/fa';
 
-export default function DashboardLaunchers({ onOpenMockModal }) {
+export default function DashboardLaunchers() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 lg:gap-5 select-none">
       
       {/* 1. Mock Exam Trigger */}
+      <Link href ="/practice/mock" className="group">
       <div
-        onClick={onOpenMockModal}
+        
         className="group cursor-pointer bg-gradient-to-br from-[#161922] to-[#12141c] hover:border-orange-500/80 active:scale-[0.98] border border-gray-800 p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl transition-all duration-200 shadow-md flex items-center justify-between gap-3"
       >
         <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
@@ -26,10 +27,11 @@ export default function DashboardLaunchers({ onOpenMockModal }) {
           <FaArrowRight />
         </div>
       </div>
+      </Link>
 
       {/* 2. Personal Test History Trigger */}
       <Link
-        href="/practice/history"
+        href="/history"
         className="group bg-gradient-to-br from-[#161922] to-[#12141c] hover:border-orange-500/50 active:scale-[0.98] border border-gray-800 p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl transition-all duration-200 shadow-md flex items-center justify-between gap-3"
       >
         <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">

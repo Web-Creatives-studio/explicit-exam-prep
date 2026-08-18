@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '../utils/supabase/client';
 import { toast } from 'react-toastify';
 import { 
@@ -13,16 +14,31 @@ import {
   FaEyeSlash, 
   FaCheckCircle, 
   FaQuoteLeft,
-  FaShieldAlt
+  FaShieldAlt,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 
-export default function LoginPage() {
+function LoginContent() {
   const supabase = createClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Check if user was kicked out due to another device login
+  const errorParam = searchParams.get('error');
+  const sessionTerminated = errorParam === 'session_terminated';
+
+  useEffect(() => {
+    if (sessionTerminated) {
+      toast.warn('Your session was ended because your account logged in from another device.', {
+        autoClose: 6000,
+      });
+    }
+  }, [sessionTerminated]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -45,7 +61,34 @@ export default function LoginPage() {
         throw new Error('Authentication succeeded, but no user identity was returned.');
       }
 
-      // 2. Fetch Role from public.profiles table using user.id
+      // -------------------------------------------------------------
+      // 2. ENFORCE ONE SESSION PER USER (Device Token Lock)
+      // -------------------------------------------------------------
+      const newDeviceSessionToken = crypto.randomUUID();
+
+      // Store in document cookie for middleware validation (30 days validity)
+      document.cookie = `device_session_token=${newDeviceSessionToken}; path=/; max-age=2592000; SameSite=Lax; secure`;
+
+      // Register this session in the database
+      const { error: rpcError } = await supabase.rpc('register_user_session', {
+        p_user_id: user.id,
+        p_session_token: newDeviceSessionToken,
+      });
+
+      // Fallback update if RPC is not yet created in SQL
+      if (rpcError) {
+        await supabase
+          .from('profiles')
+          .update({
+            current_session_token: newDeviceSessionToken,
+            last_active_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+      }
+
+      // -------------------------------------------------------------
+      // 3. Fetch Role and Profile Info
+      // -------------------------------------------------------------
       let userRole = 'student';
       let fullName = user?.user_metadata?.full_name || 'Candidate';
 
@@ -62,20 +105,14 @@ export default function LoginPage() {
         console.warn('Profile fetch warning (falling back to default role):', profileError);
       }
 
-      // 3. Update last_active_at timestamp asynchronously
-      supabase
-        .from('profiles')
-        .update({ last_active_at: new Date().toISOString() })
-        .eq('id', user.id)
-        .then(() => {});
-
       toast.success(`Welcome back, ${fullName.split(' ')[0]}!`);
 
-      // 4. Redirect based on verified role
+      // 4. Redirect based on role
       if (userRole === 'admin') {
         window.location.href = '/admin/dashboard';
       } else {
-        window.location.href = '/practice/single';
+        const nextParam = searchParams.get('next');
+        window.location.href = nextParam || '/practice/single';
       }
 
     } catch (err) {
@@ -115,6 +152,16 @@ export default function LoginPage() {
             <p className="mt-2 text-sm text-gray-400">
               Access your personalized practice dashboard and timed mock tests.
             </p>
+
+            {/* Session Expired Banner if kicked out by another device */}
+            {sessionTerminated && (
+              <div className="mt-4 p-3.5 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl flex items-start gap-3 text-xs text-yellow-300">
+                <FaExclamationTriangle className="text-yellow-400 text-sm shrink-0 mt-0.5" />
+                <span>
+                  <strong>Single-Device Lock:</strong> Your previous session was signed out because your account logged in from another device.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Form */}
@@ -188,7 +235,7 @@ export default function LoginPage() {
               </Link>
             </span>
             <div className="flex items-center gap-1.5 text-gray-500">
-              <FaShieldAlt className="text-[11px] text-orange-500" /> Role-aware secure gateway
+              <FaShieldAlt className="text-[11px] text-orange-500" /> Single-Device Protected
             </div>
           </div>
         </div>
@@ -250,5 +297,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0a0c10]" />}>
+      <LoginContent />
+    </Suspense>
   );
 }

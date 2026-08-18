@@ -16,7 +16,7 @@ export default function MockBriefing({
 }) {
   return (
     <>
-    <Navbar/>
+    <Navbar profile={profile}/>
     <div className="w-full max-w-3xl mx-auto py-2 sm:py-6 px-2 sm:px-4 space-y-6">
       <div className="bg-[#161922] border border-gray-800 rounded-3xl p-6 sm:p-10 space-y-6 shadow-2xl">
         {/* Header */}

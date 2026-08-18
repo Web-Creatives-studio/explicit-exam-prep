@@ -24,11 +24,12 @@ import {
   FaBolt
 } from 'react-icons/fa';
 
-export default function DashboardClientView({ 
+export default function DesktopClientView({ 
   profile, 
   subjects = [], 
   recentSessions = [],
-  weeklyMock = null // Optional prop to pass live mock config from server
+  availableYears = [],
+  weeklyMock = null
 }) {
   const router = useRouter();
 
@@ -44,6 +45,7 @@ export default function DashboardClientView({
   // Quick Drill parameters
   const [quickQuestionCount, setQuickQuestionCount] = useState(10);
   const [quickTimed, setQuickTimed] = useState(true);
+  const [quickYear, setQuickYear] = useState('all');
 
   // Live Friday 10 AM - 2 PM countdown & status calculations
   const [mockStatus, setMockStatus] = useState({
@@ -57,18 +59,16 @@ export default function DashboardClientView({
   useEffect(() => {
     const calculateTime = () => {
       const now = new Date();
-      // UTC+1 (WAT) conversion
       const watOffset = 60;
       const localOffset = -now.getTimezoneOffset();
       const diff = watOffset - localOffset;
       const watNow = new Date(now.getTime() + diff * 60 * 1000);
 
-      const day = watNow.getDay(); // 5 = Friday, 6 = Saturday
+      const day = watNow.getDay();
       const hour = watNow.getHours();
       const min = watNow.getMinutes();
       const timeDecimal = hour + min / 60;
 
-      // Live mock is open ONLY on Friday between 10:00 AM and 2:00 PM WAT
       const isOpen = day === 5 && timeDecimal >= 10.0 && timeDecimal < 14.0;
       const isSaturday = day === 6;
 
@@ -97,24 +97,8 @@ export default function DashboardClientView({
     return () => clearInterval(interval);
   }, []);
 
-  // Fallback subjects if database is newly seeded
-  const displaySubjects =
-    subjects.length > 0
-      ? subjects
-      : [
-          { id: 'appt', name: 'Aptitude', code: 'APPT' },
-          { id: 'eng', name: 'Use of English', code: 'ENG' },
-          { id: 'mth', name: 'Mathematics', code: 'MTH' },
-          { id: 'bio', name: 'Biology', code: 'BIO' },
-          { id: 'chm', name: 'Chemistry', code: 'CHM' },
-          { id: 'phy', name: 'Physics', code: 'PHY' },
-          { id: 'gov', name: 'Government', code: 'GOV' },
-          { id: 'eco', name: 'Economics', code: 'ECN' },
-          { id: 'lit', name: 'Literature', code: 'LIT' },
-          { id: 'crs', name: 'Christian Religious Studies', code: 'CRS' },
-        ];
+  const displaySubjects = subjects;
 
-  // Auto-picked compulsory Aptitude
   const aptitudeSubject =
     displaySubjects.find(
       (s) => s.code?.toUpperCase() === 'APPT' || s.name?.toLowerCase().includes('aptitude')
@@ -142,27 +126,24 @@ export default function DashboardClientView({
 
   const handleOpenQuickTest = (subject) => {
     setSelectedQuickSubject(subject);
+    setQuickYear('all');
     setShowQuickTestModal(true);
   };
 
   const handleLaunchQuickTest = () => {
     if (!selectedQuickSubject) return;
     router.push(
-      `/practice/session?subjectId=${selectedQuickSubject.id}&count=${quickQuestionCount}&timed=${quickTimed}&mode=single_subject`
+      `/practice/session?subjectId=${selectedQuickSubject.id}&count=${quickQuestionCount}&timed=${quickTimed}&year=${quickYear}&mode=single_subject`
     );
   };
 
   return (
     <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8 select-none">
-      {/* 1. Header Hero Banner */}
       <DashboardHeader
         profile={profile}
         onOpenRedeem={() => setShowRedeemModal(true)}
       />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 2. WEEKLY NATIONWIDE MOCK CHALLENGE SECTION (3-GRID CARDS)     */}
-      {/* ------------------------------------------------------------- */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800/80 pb-3">
           <div>
@@ -193,10 +174,8 @@ export default function DashboardClientView({
           </div>
         </div>
 
-        {/* 3-GRID CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          
-          {/* GRID 1: LIVE 40-QUESTIONS EXAM + COUNTDOWN (LOCKED OUTSIDE FRIDAY 10AM-2PM) */}
+          {/* Card 1 */}
           <div className={`relative overflow-hidden bg-gradient-to-b from-[#141822] to-[#0f1117] border rounded-3xl p-6 flex flex-col justify-between shadow-xl transition ${
             mockStatus.isOpen ? 'border-orange-500/60 shadow-orange-500/5' : 'border-gray-800 opacity-90'
           }`}>
@@ -215,15 +194,12 @@ export default function DashboardClientView({
               </div>
 
               <div>
-                <h3 className="text-base font-black text-white">
-                  Take Live Challenge
-                </h3>
+                <h3 className="text-base font-black text-white">Take Live Challenge</h3>
                 <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                   Compulsory Aptitude + your 3 core departmental subjects automatically matched.
                 </p>
               </div>
 
-              {/* Digital Countdown Strip */}
               <div className="bg-[#0b0e14] border border-gray-800 p-3 rounded-2xl flex items-center justify-between">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                   {mockStatus.isOpen ? 'Window Closes In:' : 'Opens In:'}
@@ -236,7 +212,6 @@ export default function DashboardClientView({
               </div>
             </div>
 
-            {/* Inactive & Disabled state when not in live window */}
             <button
               type="button"
               disabled={!mockStatus.isOpen}
@@ -255,18 +230,14 @@ export default function DashboardClientView({
               }`}
             >
               {mockStatus.isOpen ? (
-                <>
-                  Enter Live Mock Room <FaArrowRight />
-                </>
+                <>Enter Live Mock Room <FaArrowRight /></>
               ) : (
-                <>
-                  <FaLock className="text-xs text-gray-500" /> Opens Friday 10:00 AM WAT
-                </>
+                <><FaLock className="text-xs text-gray-500" /> Opens Friday 10:00 AM WAT</>
               )}
             </button>
           </div>
 
-          {/* GRID 2: RESULT & SATURDAY CORRECTIONS (LOCKED UNTIL SATURDAY) */}
+          {/* Card 2 */}
           <div className="relative overflow-hidden bg-gradient-to-b from-[#141822] to-[#0f1117] border border-gray-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -279,9 +250,7 @@ export default function DashboardClientView({
               </div>
 
               <div>
-                <h3 className="text-base font-black text-white">
-                  Results & Corrections
-                </h3>
+                <h3 className="text-base font-black text-white">Results & Corrections</h3>
                 <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                   Scores and step-by-step answer explanations unlock every Saturday at 12:00 AM WAT.
                 </p>
@@ -311,7 +280,7 @@ export default function DashboardClientView({
             )}
           </div>
 
-          {/* GRID 3: NATIONWIDE LEADERBOARD */}
+          {/* Card 3 */}
           <div className="relative overflow-hidden bg-gradient-to-b from-[#141822] to-[#0f1117] border border-gray-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl group hover:border-yellow-500/50 transition">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -341,32 +310,26 @@ export default function DashboardClientView({
             </div>
 
             <button
-              href="/practice/leaderboard"
-              className="mt-5 w-full py-3 bg-[#0b0e14] hover:bg-gray-800 border border-gray-800 text-gray-200 hover:text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+              className="mt-5 w-full py-3 bg-[#0b0e14] hover:bg-gray-800 border border-gray-800 text-gray-200 hover:text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center"
             >
-              View Test History <FaArrowRight />
+              View Leaderboard <FaArrowRight />
             </button>
           </div>
-
         </div>
       </section>
 
-      {/* 3. Mode Launchers */}
       <DashboardLaunchers
         onOpenMockModal={() => setShowMockConfigModal(true)}
       />
 
-      {/* 4. Subject Drills Grid */}
       <SubjectDrillGrid
         subjects={displaySubjects}
         isPremium={Boolean(profile?.is_premium)}
         onSelectSubject={handleOpenQuickTest}
       />
 
-      {/* 5. Recent Test Attempts List */}
       <RecentAttemptsList recentSessions={recentSessions} />
 
-      {/* 6. Mock Exam 4-Subject Setup Modal */}
       <MockSetupModal
         isOpen={showMockConfigModal}
         onClose={() => setShowMockConfigModal(false)}
@@ -377,19 +340,21 @@ export default function DashboardClientView({
         onLaunchMock={handleLaunchMock}
       />
 
-      {/* 7. Quick Single Drill Setup Modal */}
+      {/* Quick Single Drill Setup Modal with Dynamic Available Years */}
       <QuickTestModal
         isOpen={showQuickTestModal}
         onClose={() => setShowQuickTestModal(false)}
         selectedSubject={selectedQuickSubject}
+        availableYears={availableYears}
         quickQuestionCount={quickQuestionCount}
         setQuickQuestionCount={setQuickQuestionCount}
         quickTimed={quickTimed}
         setQuickTimed={setQuickTimed}
+        quickYear={quickYear}
+        setQuickYear={setQuickYear}
         onLaunchQuickTest={handleLaunchQuickTest}
       />
 
-      {/* 8. Redeem Code & Buy via WhatsApp Modal */}
       <RedeemModal
         isOpen={showRedeemModal}
         onClose={() => setShowRedeemModal(false)}
