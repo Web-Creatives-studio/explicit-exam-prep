@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useState, useEffect, Suspense } from 'react';
-import Link from 'next/link';
-import { createClient } from '../../utils/supabase/client';
-import { 
-  FaUsers, 
-  FaUserGraduate, 
-  FaBook, 
-  FaKey, 
-  FaCrown, 
-  FaClock, 
-  FaArrowRight 
-} from 'react-icons/fa';
-import { FiLoader } from 'react-icons/fi';
+import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
+import { createClient } from "../../utils/supabase/client";
+import {
+  FaUsers,
+  FaUserGraduate,
+  FaBook,
+  FaKey,
+  FaCrown,
+  FaClock,
+  FaArrowRight,
+} from "react-icons/fa";
+import { FiLoader } from "react-icons/fi";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 function AdminDashboardContent() {
   const supabase = createClient();
@@ -45,17 +45,34 @@ function AdminDashboardContent() {
         { count: questionCount },
         { count: unusedCodeCount },
         { count: mockCount },
-        { data: recentSessions, error: sessionErr }
+        { data: recentSessions, error: sessionErr },
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('last_active_at', fifteenMinsAgo),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).neq('role', 'admin'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
-        supabase.from('questions').select('*', { count: 'exact', head: true }),
-        supabase.from('access_codes').select('*', { count: 'exact', head: true }).eq('is_used', false),
-        supabase.from('mock_sessions').select('*', { count: 'exact', head: true }),
         supabase
-          .from('mock_sessions')
-          .select(`
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .gte("last_active_at", fifteenMinsAgo)
+          .neq('role', 'admin'),
+        supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .neq("role", "admin"),
+        supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .eq("is_premium", true)
+          .neq("role", "admin"),
+        supabase.from("questions").select("*", { count: "exact", head: true }),
+        supabase
+          .from("access_codes")
+          .select("*", { count: "exact", head: true })
+          .eq("is_used", false),
+        supabase
+          .from("mock_sessions")
+          .select("*", { count: "exact", head: true }),
+        supabase
+          .from("mock_sessions")
+          .select(
+            `
             id,
             mode,
             subject_id,
@@ -74,13 +91,14 @@ function AdminDashboardContent() {
               name,
               code
             )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(8)
+          `,
+          )
+          .order("created_at", { ascending: false })
+          .limit(8),
       ]);
 
       if (sessionErr) {
-        console.error('Error fetching recent sessions:', sessionErr);
+        console.error("Error fetching recent sessions:", sessionErr);
       }
 
       setStats({
@@ -101,24 +119,25 @@ function AdminDashboardContent() {
           ? session.subjects[0]
           : session.subjects;
 
-        let displayMode = 'Practice Drill';
-        let badgeColor = 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+        let displayMode = "Practice Drill";
+        let badgeColor = "bg-gray-500/10 text-gray-400 border-gray-500/20";
 
-        if (session.mode === 'single_subject') {
-          displayMode = subjectObj?.name || 'Single Subject';
-          badgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-        } else if (session.mode === 'full_mock') {
-          displayMode = 'Full 4-Subject Mock';
-          badgeColor = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-        } else if (session.mode === 'weekly_mock') {
-          displayMode = 'Weekly Challenge';
-          badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        if (session.mode === "single_subject") {
+          displayMode = subjectObj?.name || "Single Subject";
+          badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+        } else if (session.mode === "full_mock") {
+          displayMode = "Full 4-Subject Mock";
+          badgeColor = "bg-orange-500/10 text-orange-400 border-orange-500/20";
+        } else if (session.mode === "weekly_mock") {
+          displayMode = "Weekly Challenge";
+          badgeColor =
+            "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
         }
 
         return {
           id: session.id,
-          candidateName: profileObj?.full_name || 'Candidate',
-          candidateDepartment: profileObj?.department || 'OAU Post-UTME',
+          candidateName: profileObj?.full_name || "Candidate",
+          candidateDepartment: profileObj?.department || "OAU Post-UTME",
           modeTitle: displayMode,
           badgeColor,
           score: session.score,
@@ -130,26 +149,66 @@ function AdminDashboardContent() {
 
       setRecentAttempts(normalizedAttempts);
     } catch (err) {
-      console.error('Failed to load dashboard data:', err);
+      console.error("Failed to load dashboard data:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const statCards = [
-    { label: 'Active Candidates (15m)', value: stats.activeNow, icon: FaUsers, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-    { label: 'Total Registered Aspirants', value: stats.totalStudents, icon: FaUserGraduate, color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
-    { label: 'PRO Subscribers', value: stats.premiumStudents, icon: FaCrown, color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-    { label: 'Total Question Bank', value: stats.totalQuestions, icon: FaBook, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
-    { label: 'Unused Voucher Codes', value: stats.unusedCodes, icon: FaKey, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-    { label: 'Total CBT Tests Taken', value: stats.totalMockSessions, icon: FaClock, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
+    {
+      label: "Active Candidates (15m)",
+      value: stats.activeNow,
+      icon: FaUsers,
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10 border-emerald-500/20",
+    },
+    {
+      label: "Total Registered Aspirants",
+      value: stats.totalStudents,
+      icon: FaUserGraduate,
+      color: "text-orange-400",
+      bg: "bg-orange-500/10 border-orange-500/20",
+    },
+    {
+      label: "PRO Subscribers",
+      value: stats.premiumStudents,
+      icon: FaCrown,
+      color: "text-yellow-400",
+      bg: "bg-yellow-500/10 border-yellow-500/20",
+    },
+    {
+      label: "Total Question Bank",
+      value: stats.totalQuestions,
+      icon: FaBook,
+      color: "text-blue-400",
+      bg: "bg-blue-500/10 border-blue-500/20",
+    },
+    {
+      label: "Unused Voucher Codes",
+      value: stats.unusedCodes,
+      icon: FaKey,
+      color: "text-purple-400",
+      bg: "bg-purple-500/10 border-purple-500/20",
+    },
+    {
+      label: "Total CBT Tests Taken",
+      value: stats.totalMockSessions,
+      icon: FaClock,
+      color: "text-cyan-400",
+      bg: "bg-cyan-500/10 border-cyan-500/20",
+    },
   ];
 
   return (
     <div className="space-y-8 select-none">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">System Performance & Insights</h1>
-        <p className="text-gray-400 text-xs sm:text-sm mt-1">Real-time candidate engagement, test submissions, and license metrics.</p>
+        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          System Performance & Insights
+        </h1>
+        <p className="text-gray-400 text-xs sm:text-sm mt-1">
+          Real-time candidate engagement, test submissions, and license metrics.
+        </p>
       </div>
 
       {/* KPI Cards */}
@@ -157,14 +216,23 @@ function AdminDashboardContent() {
         {statCards.map((c) => {
           const Icon = c.icon;
           return (
-            <div key={c.label} className="bg-[#141822] p-5 rounded-2xl border border-gray-800 shadow-sm flex items-center justify-between">
+            <div
+              key={c.label}
+              className="bg-[#141822] p-5 rounded-2xl border border-gray-800 shadow-sm flex items-center justify-between"
+            >
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-gray-400">{c.label}</div>
-                <div className={`text-2xl sm:text-3xl font-black mt-1.5 ${c.color}`}>
-                  {loading ? '...' : c.value.toLocaleString()}
+                <div className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                  {c.label}
+                </div>
+                <div
+                  className={`text-2xl sm:text-3xl font-black mt-1.5 ${c.color}`}
+                >
+                  {loading ? "..." : c.value.toLocaleString()}
                 </div>
               </div>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center border text-lg ${c.bg} ${c.color}`}>
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center border text-lg ${c.bg} ${c.color}`}
+              >
                 <Icon />
               </div>
             </div>
@@ -174,24 +242,30 @@ function AdminDashboardContent() {
 
       {/* Admin Action Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link 
+        <Link
           href="/admin/upload"
           className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 p-6 rounded-2xl flex items-center justify-between text-white shadow-lg shadow-orange-600/20 transition group"
         >
           <div>
             <div className="font-extrabold text-lg">Upload Questions</div>
-            <div className="text-xs text-orange-100 mt-1">Bulk past questions via raw text, CSV, or formatted JSON</div>
+            <div className="text-xs text-orange-100 mt-1">
+              Bulk past questions via raw text, CSV, or formatted JSON
+            </div>
           </div>
           <FaArrowRight className="text-xl group-hover:translate-x-1 transition" />
         </Link>
 
-        <Link 
+        <Link
           href="/admin/codes"
           className="bg-[#141822] hover:bg-[#191f2c] border border-gray-800 p-6 rounded-2xl flex items-center justify-between text-white transition group"
         >
           <div>
-            <div className="font-extrabold text-lg text-purple-400">Generate Access Vouchers</div>
-            <div className="text-xs text-gray-400 mt-1">Create licensing codes for candidates activating via WhatsApp</div>
+            <div className="font-extrabold text-lg text-purple-400">
+              Generate Access Vouchers
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              Create licensing codes for candidates activating via WhatsApp
+            </div>
           </div>
           <FaArrowRight className="text-xl text-gray-400 group-hover:text-purple-400 group-hover:translate-x-1 transition" />
         </Link>
@@ -200,8 +274,13 @@ function AdminDashboardContent() {
       {/* Live Stream Table */}
       <div className="bg-[#141822] border border-gray-800 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-base sm:text-lg font-bold text-white">Live Candidate Test Stream</h2>
-          <Link href="/admin/students" className="text-xs text-orange-400 font-bold hover:underline">
+          <h2 className="text-base sm:text-lg font-bold text-white">
+            Live Candidate Test Stream
+          </h2>
+          <Link
+            href="/admin/students"
+            className="text-xs text-orange-400 font-bold hover:underline"
+          >
             View All Candidates →
           </Link>
         </div>
@@ -224,35 +303,57 @@ function AdminDashboardContent() {
                   <td colSpan="6" className="py-12 text-center text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <FiLoader className="animate-spin text-orange-500 text-2xl" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Loading Live Candidate Activity...</span>
+                      <span className="text-xs font-bold uppercase tracking-wider">
+                        Loading Live Candidate Activity...
+                      </span>
                     </div>
                   </td>
                 </tr>
               ) : (
                 recentAttempts.map((row) => {
                   const percentage = Math.round(
-                    ((row.score || 0) / (row.total_questions || 1)) * 100
+                    ((row.score || 0) / (row.total_questions || 1)) * 100,
                   );
 
                   return (
-                    <tr key={row.id} className="hover:bg-gray-800/20 transition">
-                      <td className="p-3.5 font-bold text-white">{row.candidateName}</td>
-                      <td className="p-3.5 text-xs text-gray-400">{row.candidateDepartment}</td>
+                    <tr
+                      key={row.id}
+                      className="hover:bg-gray-800/20 transition"
+                    >
+                      <td className="p-3.5 font-bold text-white">
+                        {row.candidateName}
+                      </td>
+                      <td className="p-3.5 text-xs text-gray-400">
+                        {row.candidateDepartment}
+                      </td>
                       <td className="p-3.5">
-                        <span className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${row.badgeColor}`}>
+                        <span
+                          className={`inline-block text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${row.badgeColor}`}
+                        >
                           {row.modeTitle}
                         </span>
                       </td>
                       <td className="p-3.5 font-mono">
-                        <span className="font-bold text-orange-400">{row.score}</span>
-                        <span className="text-gray-500 font-normal"> / {row.total_questions}</span>
-                        <span className="text-[10px] text-gray-400 ml-1.5 font-mono">({percentage}%)</span>
+                        <span className="font-bold text-orange-400">
+                          {row.score}
+                        </span>
+                        <span className="text-gray-500 font-normal">
+                          {" "}
+                          / {row.total_questions}
+                        </span>
+                        <span className="text-[10px] text-gray-400 ml-1.5 font-mono">
+                          ({percentage}%)
+                        </span>
                       </td>
                       <td className="p-3.5 text-xs text-gray-400 font-mono">
-                        {Math.floor((row.time_spent_seconds || 0) / 60)}m {(row.time_spent_seconds || 0) % 60}s
+                        {Math.floor((row.time_spent_seconds || 0) / 60)}m{" "}
+                        {(row.time_spent_seconds || 0) % 60}s
                       </td>
                       <td className="p-3.5 text-xs text-gray-500 text-right font-mono">
-                        {new Date(row.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(row.created_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </td>
                     </tr>
                   );
@@ -260,7 +361,9 @@ function AdminDashboardContent() {
               )}
               {recentAttempts.length === 0 && !loading && (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-gray-500">No test attempts logged yet.</td>
+                  <td colSpan="6" className="p-8 text-center text-gray-500">
+                    No test attempts logged yet.
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -275,7 +378,9 @@ function AdminDashboardFallback() {
   return (
     <div className="h-[70vh] w-full flex flex-col items-center justify-center gap-3 text-gray-400">
       <FiLoader className="animate-spin text-orange-500 text-3xl" />
-      <p className="text-xs font-bold uppercase tracking-widest">Loading Dashboard Insights...</p>
+      <p className="text-xs font-bold uppercase tracking-widest">
+        Loading Dashboard Insights...
+      </p>
     </div>
   );
 }

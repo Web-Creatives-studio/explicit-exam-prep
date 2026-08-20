@@ -1,23 +1,22 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '../../utils/supabase/client';
 import { toast } from 'react-toastify';
 import { 
   FaCalendarAlt, 
-  FaBook, 
   FaCloudUploadAlt, 
   FaSpinner, 
   FaPlusCircle, 
   FaCheckCircle, 
   FaLayerGroup,
   FaTrashAlt,
-  FaFileAlt,
   FaCrown,
   FaTimes,
   FaEye,
   FaInfoCircle,
-  FaSearch
+  FaSearch,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 
 export default function AdminMockBuilder() {
@@ -77,20 +76,21 @@ export default function AdminMockBuilder() {
   const fetchInitialData = async () => {
     const { data: subs } = await supabase
       .from('subjects')
-      .select('*')
+      .select('id, name, code')
       .order('name', { ascending: true });
     setSubjects(subs || []);
     if (subs?.length > 0) setSelectedSubjectId(subs[0].id);
 
     const { data: mockList } = await supabase
       .from('weekly_mocks')
-      .select('*')
+      .select('id, title, active_date, is_published')
       .order('active_date', { ascending: false });
     setMocks(mockList || []);
     if (mockList?.length > 0) setSelectedMockId(mockList[0].id);
   };
 
   const fetchMockQuestionCounts = async (mockId) => {
+    if (!mockId) return;
     const { data } = await supabase
       .from('weekly_mock_questions')
       .select('subject_id')
@@ -140,86 +140,116 @@ export default function AdminMockBuilder() {
   };
 
   // -----------------------------------------------------------------
-  // 4. Flexible Text Parser
+  // 4. Robust, Multi-Format Text Question Parser
   // -----------------------------------------------------------------
   const parseQuestionsFromText = (text) => {
-    const blocks = text.trim().split(/(?=(?:^\s*(?:\d+[\.\)]|\(\d+\))))/m);
+    if (!text || !text.trim()) return [];
+
+    // Normalize Windows/Mac/Linux line breaks
+    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Split by question number headers (e.g., "1.", "1)", "(1)", "Question 1:", "Q1.")
+    const rawBlocks = cleanText
+      .split(/(?=(?:^[ \t]*(?:(?:Question|Q)?[ \t]*\d+[.\):]|[\[(]\d+[\])])))/gim)
+      .map((b) => b.trim())
+      .filter(Boolean);
+
     const parsedQuestions = [];
 
-    for (let block of blocks) {
-      block = block.trim();
+    for (let block of rawBlocks) {
       if (!block) continue;
 
+      let explanation = '';
+      let correct_option = '';
       let question_text = '';
       let option_a = '';
       let option_b = '';
       let option_c = '';
       let option_d = '';
-      let correct_option = '';
-      let explanation = '';
-      let parsedYear = batchYear;
-      let parsedIsFree = batchIsFree;
 
-      const expMatch = block.match(/(?:EXPLANATION|EXP):\s*([\s\S]*)$/i);
+      // 1. Extract Explanation if present at the end
+      const expRegex = /(?:^|\n)[ \t]*(?:EXPLANATION|EXP|REASON|SOLUTION|WHY)[ \t]*:?[ \t]*([\s\S]*)$/i;
+      const expMatch = block.match(expRegex);
       if (expMatch) {
         explanation = expMatch[1].trim();
-        block = block.replace(/(?:EXPLANATION|EXP):\s*[\s\S]*$/i, '').trim();
+        block = block.replace(expRegex, '').trim();
       }
 
-      const ansMatch = block.match(/(?:ANSWER|ANS):\s*([A-D])/i);
+      // 2. Extract Answer Key (e.g., "ANSWER: A", "ANS: (B)", "Correct Option: C", "[ANS: D]")
+      const ansRegex = /(?:^|\n)[ \t]*(?:ANSWER|ANS|CORRECT|CORRECT OPTION|KEY)[ \t]*:?[ \t]*[\[(]?([A-D])[\])]?[ \t]*(?:\n|$)/i;
+      const ansMatch = block.match(ansRegex);
       if (ansMatch) {
         correct_option = ansMatch[1].toUpperCase();
-        block = block.replace(/(?:ANSWER|ANS):\s*[A-D]/i, '').trim();
+        block = block.replace(ansRegex, '\n').trim();
       }
 
-      const optMatches = [...block.matchAll(/(?:^|[\s\n])(?:\(?([A-D])[\.\)]|\b([A-D])[\.\)]|\b([A-D])\s)([\s\S]*?)(?=(?:[\s\n]\(?[A-D][\.\)]|[\s\n][A-D][\.\)]|[\s\n][A-D]\s|$))/gi)];
+      // 3. Robust Option Boundary Splitting
+      const optDelimRegex = /(?:^|\n)[ \t]*(?:[\[(]?([A-D])[\]).:])[ \t]+/gi;
+      const matches = [...block.matchAll(optDelimRegex)];
 
-      if (optMatches.length >= 4) {
-        const qTextEnd = optMatches[0].index;
-        question_text = block.substring(0, qTextEnd).replace(/^\s*(?:\d+[\.\)]|\(\d+\))\s*/, '').trim();
+      if (matches.length >= 4) {
+        // Question text is everything before Option A
+        const firstOptIndex = matches[0].index;
+        question_text = block
+          .substring(0, firstOptIndex)
+          .replace(/^[ \t]*(?:(?:Question|Q)?[ \t]*\d+[.\):]|[\[(]\d+[\])])[ \t]*/i, '')
+          .trim();
 
-        optMatches.forEach((m) => {
-          const letter = (m[1] || m[2] || m[3]).toUpperCase();
-          const content = m[4].trim();
-          if (letter === 'A') option_a = content;
-          if (letter === 'B') option_b = content;
-          if (letter === 'C') option_c = content;
-          if (letter === 'D') option_d = content;
-        });
+        // Extract option text by tracking boundaries between matches
+        for (let i = 0; i < matches.length; i++) {
+          const letter = matches[i][1].toUpperCase();
+          const startIndex = matches[i].index + matches[i][0].length;
+          const endIndex = i + 1 < matches.length ? matches[i + 1].index : block.length;
+          const content = block.substring(startIndex, endIndex).trim();
+
+          if (letter === 'A' && !option_a) option_a = content;
+          else if (letter === 'B' && !option_b) option_b = content;
+          else if (letter === 'C' && !option_c) option_c = content;
+          else if (letter === 'D' && !option_d) option_d = content;
+        }
       } else {
+        // Line-by-line fallback parser for compact formats
         const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+        let currentSection = 'question';
+
         for (const line of lines) {
-          if (/^\d+[\.\)]\s*/i.test(line) && !question_text) {
-            question_text = line.replace(/^\d+[\.\)]\s*/i, '').trim();
-          } else if (/^[A][\.\)]\s*/i.test(line)) {
-            option_a = line.replace(/^[A][\.\)]\s*/i, '').trim();
-          } else if (/^[B][\.\)]\s*/i.test(line)) {
-            option_b = line.replace(/^[B][\.\)]\s*/i, '').trim();
-          } else if (/^[C][\.\)]\s*/i.test(line)) {
-            option_c = line.replace(/^[C][\.\)]\s*/i, '').trim();
-          } else if (/^[D][\.\)]\s*/i.test(line)) {
-            option_d = line.replace(/^[D][\.\)]\s*/i, '').trim();
-          } else if (/^(?:ANSWER|ANS):\s*([A-D])/i.test(line)) {
-            correct_option = line.match(/(?:ANSWER|ANS):\s*([A-D])/i)[1].toUpperCase();
+          const optMatch = line.match(/^[\[(]?([A-D])[\]).:][ \t]+([\s\S]*)/i);
+          if (optMatch) {
+            const letter = optMatch[1].toUpperCase();
+            const text = optMatch[2].trim();
+            if (letter === 'A') { option_a = text; currentSection = 'A'; }
+            else if (letter === 'B') { option_b = text; currentSection = 'B'; }
+            else if (letter === 'C') { option_c = text; currentSection = 'C'; }
+            else if (letter === 'D') { option_d = text; currentSection = 'D'; }
+          } else if (currentSection === 'question') {
+            const cleanLine = line.replace(/^[ \t]*(?:(?:Question|Q)?[ \t]*\d+[.\):]|[\[(]\d+[\])])[ \t]*/i, '');
+            question_text += (question_text ? '\n' : '') + cleanLine;
+          } else if (['A', 'B', 'C', 'D'].includes(currentSection)) {
+            if (currentSection === 'A') option_a += '\n' + line;
+            if (currentSection === 'B') option_b += '\n' + line;
+            if (currentSection === 'C') option_c += '\n' + line;
+            if (currentSection === 'D') option_d += '\n' + line;
           }
         }
       }
 
+      // Default fallback if no answer key was parsed
       if (!correct_option) {
         correct_option = 'A';
       }
 
-      if (question_text && option_a && option_b && option_c && option_d) {
+      // Push valid question only if all essential fields exist
+      if (question_text.trim() && option_a.trim() && option_b.trim() && option_c.trim() && option_d.trim()) {
         parsedQuestions.push({
-          question_text,
-          option_a,
-          option_b,
-          option_c,
-          option_d,
+          question_text: question_text.trim(),
+          option_a: option_a.trim(),
+          option_b: option_b.trim(),
+          option_c: option_c.trim(),
+          option_d: option_d.trim(),
           correct_option,
-          explanation: explanation || 'No explanation provided.',
-          year: parsedYear,
-          is_free: parsedIsFree,
+          explanation: explanation.trim() || 'No detailed explanation provided for this question.',
+          year: Number(batchYear) || 2026,
+          is_free: Boolean(batchIsFree),
         });
       }
     }
@@ -251,7 +281,7 @@ export default function AdminMockBuilder() {
     const parsedList = parseQuestionsFromText(rawText);
 
     if (parsedList.length === 0) {
-      toast.error('Could not parse any valid questions. Please ensure valid A/B/C/D format.');
+      toast.error('Could not parse any valid questions. Please ensure Question and A/B/C/D options exist.');
       return;
     }
 
@@ -263,6 +293,7 @@ export default function AdminMockBuilder() {
         subject_id: selectedSubjectId,
       }));
 
+      // 1. Insert directly into public.questions
       const { data: insertedQuestions, error: qError } = await supabase
         .from('questions')
         .insert(formattedQuestions)
@@ -270,6 +301,11 @@ export default function AdminMockBuilder() {
 
       if (qError) throw qError;
 
+      if (!insertedQuestions || insertedQuestions.length === 0) {
+        throw new Error('Database accepted request but returned no record IDs.');
+      }
+
+      // 2. Link each created question into weekly_mock_questions
       const mockLinks = insertedQuestions.map((q) => ({
         mock_id: selectedMockId,
         question_id: q.id,
@@ -282,20 +318,21 @@ export default function AdminMockBuilder() {
 
       if (linkError) throw linkError;
 
-      toast.success(`Successfully uploaded ${insertedQuestions.length} questions for this subject!`);
+      toast.success(`Successfully uploaded ${insertedQuestions.length} complete questions!`);
       setRawText('');
       fetchMockQuestionCounts(selectedMockId);
     } catch (err) {
-      toast.error(err.message || 'Failed to upload questions.');
+      console.error('Upload error:', err);
+      toast.error(err.message || 'Failed to upload questions to database.');
     } finally {
       setUploadingQuestions(false);
     }
   };
 
   // -----------------------------------------------------------------
-  // 6. View & Manage Already Linked Questions for Subject
+  // 6. View & Manage Linked Questions with Full Joins
   // -----------------------------------------------------------------
-  const handleViewSubjectQuestions = async (sub) => {
+  const handleViewSubjectQuestions = useCallback(async (sub) => {
     setViewingSubjectQuestions(sub);
     setLoadingLinkedQuestions(true);
     setModalSearch('');
@@ -304,10 +341,13 @@ export default function AdminMockBuilder() {
       .from('weekly_mock_questions')
       .select(`
         id,
+        mock_id,
+        subject_id,
         question_id,
         created_at,
-        questions (
+        questions:question_id (
           id,
+          subject_id,
           question_text,
           option_a,
           option_b,
@@ -320,17 +360,18 @@ export default function AdminMockBuilder() {
         )
       `)
       .eq('mock_id', selectedMockId)
-      .eq('subject_id', sub.id);
+      .eq('subject_id', sub.id)
+      .order('created_at', { ascending: true });
 
     if (error) {
-      toast.error('Failed to load linked questions.');
+      toast.error('Failed to load linked questions from database.');
     }
 
     const list = data || [];
     setLinkedQuestions(list);
     setActiveInspectedQuestion(list[0] || null);
     setLoadingLinkedQuestions(false);
-  };
+  }, [selectedMockId, supabase]);
 
   const handleRemoveQuestionFromMock = async (linkId, e) => {
     if (e) e.stopPropagation();
@@ -551,7 +592,7 @@ export default function AdminMockBuilder() {
                 required
                 value={rawText}
                 onChange={(e) => setRawText(e.target.value)}
-                placeholder={`1. Question text here...\nA. Option A\nB. Option B\nC. Option C\nD. Option D\nANSWER: A\nEXPLANATION: Step-by-step reasoning...`}
+                placeholder={`1. In the reaction 2H2 + O2 -> 2H2O, what is the stoichiometric ratio?\nA. 1:1\nB. 2:1\nC. 1:2\nD. 2:2\nANSWER: B\nEXPLANATION: 2 moles of Hydrogen react with 1 mole of Oxygen.`}
                 className="w-full p-4 bg-[#0b0e14] border border-gray-800 rounded-2xl text-xs sm:text-sm font-mono text-gray-200 placeholder-gray-700 focus:outline-none focus:border-orange-500 leading-relaxed transition"
               />
             </div>
@@ -563,7 +604,7 @@ export default function AdminMockBuilder() {
               type="button"
               onClick={() => setRawText('')}
               disabled={!rawText || uploadingQuestions}
-              className="px-4 py-2.5 bg-transparent hover:bg-red-500/10 border border-transparent hover:border-red-500/30 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+              className="px-4 py-2.5 bg-transparent hover:bg-red-500/10 border border-transparent hover:border-red-500/30 text-red-400 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <FaTrashAlt /> Clear Text
             </button>
@@ -633,12 +674,10 @@ export default function AdminMockBuilder() {
               </button>
             </div>
 
-            {/* Modal Body: Split Grid (Left = Questions List, Right = Live Preview) */}
+            {/* Modal Body: Split Grid */}
             <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-gray-800">
               
-              {/* ========================================================= */}
-              {/* LEFT PANE (5 COLS): LIST OF ALL ATTACHED QUESTIONS        */}
-              {/* ========================================================= */}
+              {/* LEFT PANE: ATTACHED QUESTIONS LIST */}
               <div className="lg:col-span-5 p-4 flex flex-col h-full bg-[#0e1118] overflow-hidden">
                 
                 {/* Search in Modal */}
@@ -653,8 +692,8 @@ export default function AdminMockBuilder() {
                   />
                 </div>
 
-                {/* Question List (Scrollable Area) */}
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 custom-scrollbar">
+                {/* Question List */}
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin scrollbar-thumb-gray-800">
                   {loadingLinkedQuestions ? (
                     <div className="h-48 flex flex-col items-center justify-center gap-2 text-gray-400">
                       <FaSpinner className="animate-spin text-orange-500 text-xl" />
@@ -662,7 +701,7 @@ export default function AdminMockBuilder() {
                     </div>
                   ) : filteredModalQuestions.length === 0 ? (
                     <div className="p-8 text-center text-gray-500 bg-[#0b0e14] rounded-2xl border border-gray-800 text-xs font-bold">
-                      No questions found.
+                      No questions found for this subject.
                     </div>
                   ) : (
                     filteredModalQuestions.map((item, idx) => {
@@ -687,11 +726,11 @@ export default function AdminMockBuilder() {
                             </span>
                             <div className="space-y-1 min-w-0">
                               <p className="text-xs font-medium text-white line-clamp-2 leading-relaxed">
-                                {q?.question_text}
+                                {q?.question_text || 'No question text loaded'}
                               </p>
                               <div className="flex items-center gap-1.5 text-[10px]">
                                 <span className="text-emerald-400 font-mono font-bold">
-                                  Ans: ({q?.correct_option})
+                                  Ans: ({q?.correct_option || 'N/A'})
                                 </span>
                                 <span className="text-gray-500">•</span>
                                 <span className="text-gray-400">
@@ -719,16 +758,14 @@ export default function AdminMockBuilder() {
                 <div className="pt-3 border-t border-gray-800 mt-2 flex items-center justify-between text-[11px] text-gray-400 shrink-0">
                   <span>Total in Mock: <strong className="text-white">{linkedQuestions.length}</strong></span>
                   <span className="text-orange-400 font-bold">
-                    {linkedQuestions.length >= 10 ? '✓ Target Met (10/10)' : `${10 - linkedQuestions.length} more needed`}
+                    {linkedQuestions.length >= 10 ? '✓ Target Met (10/10)' : `${Math.max(0, 10 - linkedQuestions.length)} more needed`}
                   </span>
                 </div>
 
               </div>
 
-              {/* ========================================================= */}
-              {/* RIGHT PANE (7 COLS): LIVE PREVIEW & EXPLANATION           */}
-              {/* ========================================================= */}
-              <div className="lg:col-span-7 p-6 overflow-y-auto space-y-5 bg-[#141822] h-full custom-scrollbar">
+              {/* RIGHT PANE: LIVE PREVIEW */}
+              <div className="lg:col-span-7 p-6 overflow-y-auto space-y-5 bg-[#141822] h-full scrollbar-thin scrollbar-thumb-gray-800">
                 {activeInspectedQuestion ? (
                   <div className="space-y-5 animate-in fade-in duration-150">
                     
@@ -763,7 +800,7 @@ export default function AdminMockBuilder() {
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
                         Problem Statement
                       </span>
-                      <p className="text-sm font-semibold text-white leading-relaxed">
+                      <p className="text-sm font-semibold text-white leading-relaxed whitespace-pre-wrap">
                         {activeInspectedQuestion.questions?.question_text}
                       </p>
                     </div>
@@ -795,10 +832,10 @@ export default function AdminMockBuilder() {
                                 }`}>
                                   {upperKey}
                                 </span>
-                                <span>{optText}</span>
+                                <span className="whitespace-pre-wrap">{optText}</span>
                               </div>
                               {isCorrect && (
-                                <span className="text-[9px] uppercase font-black tracking-wider text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                                <span className="text-[9px] uppercase font-black tracking-wider text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1 shrink-0 ml-2">
                                   <FaCheckCircle className="text-[9px]" /> Correct Answer
                                 </span>
                               )}
@@ -813,7 +850,7 @@ export default function AdminMockBuilder() {
                       <div className="text-orange-400 font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
                         <FaInfoCircle /> Step-by-Step Explanation
                       </div>
-                      <p className="leading-relaxed text-gray-300 text-[11px]">
+                      <p className="leading-relaxed text-gray-300 text-[11px] whitespace-pre-wrap">
                         {activeInspectedQuestion.questions?.explanation || 'No step-by-step explanation attached to this question.'}
                       </p>
                     </div>

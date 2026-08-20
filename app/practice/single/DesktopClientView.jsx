@@ -13,6 +13,12 @@ import QuickTestModal from '../../components/dashboard/QuickTestModal';
 import RedeemModal from '../../components/ReedemModal';
 
 import { 
+  getWeeklyMockWindowStatus, 
+  areResultsReleased, 
+  getDepartmentMockSubjects 
+} from '../../utils/weeklyMockHelper';
+
+import { 
   FaTrophy, 
   FaClock, 
   FaFire, 
@@ -47,55 +53,22 @@ export default function DesktopClientView({
   const [quickTimed, setQuickTimed] = useState(true);
   const [quickYear, setQuickYear] = useState('all');
 
-  // Live Friday 10 AM - 2 PM countdown & status calculations
-  const [mockStatus, setMockStatus] = useState({
-    isOpen: false,
-    isSaturday: false,
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-  });
+  // Live window & release status driven directly by weeklyMockHelper
+  const [mockStatus, setMockStatus] = useState(() => getWeeklyMockWindowStatus());
+  const [resultsUnlocked, setResultsUnlocked] = useState(() => 
+    areResultsReleased(weeklyMock?.active_date)
+  );
 
   useEffect(() => {
-    const calculateTime = () => {
-      const now = new Date();
-      const watOffset = 60;
-      const localOffset = -now.getTimezoneOffset();
-      const diff = watOffset - localOffset;
-      const watNow = new Date(now.getTime() + diff * 60 * 1000);
-
-      const day = watNow.getDay();
-      const hour = watNow.getHours();
-      const min = watNow.getMinutes();
-      const timeDecimal = hour + min / 60;
-
-      const isOpen = day === 5 && timeDecimal >= 10.0 && timeDecimal < 14.0;
-      const isSaturday = day === 6;
-
-      let target = new Date(watNow);
-      if (isOpen) {
-        target.setHours(14, 0, 0, 0);
-      } else {
-        let daysUntilFriday = (5 - day + 7) % 7;
-        if (day === 5 && timeDecimal >= 14.0) daysUntilFriday = 7;
-        target.setDate(watNow.getDate() + daysUntilFriday);
-        target.setHours(10, 0, 0, 0);
-      }
-
-      const diffMs = Math.max(0, target - watNow);
-      setMockStatus({
-        isOpen,
-        isSaturday,
-        hours: Math.floor(diffMs / (1000 * 60 * 60)),
-        minutes: Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)),
-        seconds: Math.floor((diffMs % (1000 * 60)) / 1000),
-      });
+    const syncTime = () => {
+      setMockStatus(getWeeklyMockWindowStatus());
+      setResultsUnlocked(areResultsReleased(weeklyMock?.active_date));
     };
 
-    calculateTime();
-    const interval = setInterval(calculateTime, 1000);
+    syncTime();
+    const interval = setInterval(syncTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [weeklyMock]);
 
   const displaySubjects = subjects;
 
@@ -175,7 +148,8 @@ export default function DesktopClientView({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          {/* Card 1 */}
+          
+          {/* Card 1: Live Exam Room */}
           <div className={`relative overflow-hidden bg-gradient-to-b from-[#141822] to-[#0f1117] border rounded-3xl p-6 flex flex-col justify-between shadow-xl transition ${
             mockStatus.isOpen ? 'border-orange-500/60 shadow-orange-500/5' : 'border-gray-800 opacity-90'
           }`}>
@@ -205,9 +179,9 @@ export default function DesktopClientView({
                   {mockStatus.isOpen ? 'Window Closes In:' : 'Opens In:'}
                 </span>
                 <div className="font-mono font-black text-xs text-orange-400 flex items-center gap-1">
-                  <span>{String(mockStatus.hours).padStart(2, '0')}h</span> :
-                  <span>{String(mockStatus.minutes).padStart(2, '0')}m</span> :
-                  <span>{String(mockStatus.seconds).padStart(2, '0')}s</span>
+                  <span>{String(mockStatus.hours || 0).padStart(2, '0')}h</span> :
+                  <span>{String(mockStatus.minutes || 0).padStart(2, '0')}m</span> :
+                  <span>{String(mockStatus.seconds || 0).padStart(2, '0')}s</span>
                 </div>
               </div>
             </div>
@@ -237,7 +211,7 @@ export default function DesktopClientView({
             </button>
           </div>
 
-          {/* Card 2 */}
+          {/* Card 2: Results & Corrections */}
           <div className="relative overflow-hidden bg-gradient-to-b from-[#141822] to-[#0f1117] border border-gray-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -262,7 +236,7 @@ export default function DesktopClientView({
               </div>
             </div>
 
-            {mockStatus.isSaturday ? (
+            {resultsUnlocked ? (
               <Link
                 href="/practice/mock/result"
                 className="mt-5 w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-600/20"
@@ -280,7 +254,7 @@ export default function DesktopClientView({
             )}
           </div>
 
-          {/* Card 3 */}
+          {/* Card 3: Nationwide Leaderboard */}
           <div className="relative overflow-hidden bg-gradient-to-b from-[#141822] to-[#0f1117] border border-gray-800 rounded-3xl p-6 flex flex-col justify-between shadow-xl group hover:border-yellow-500/50 transition">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -309,12 +283,14 @@ export default function DesktopClientView({
               </div>
             </div>
 
-            <button
+            <Link 
+              href="/practice/leaderboard"
               className="mt-5 w-full py-3 bg-[#0b0e14] hover:bg-gray-800 border border-gray-800 text-gray-200 hover:text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center"
             >
               View Leaderboard <FaArrowRight />
-            </button>
+            </Link>
           </div>
+
         </div>
       </section>
 
@@ -340,7 +316,6 @@ export default function DesktopClientView({
         onLaunchMock={handleLaunchMock}
       />
 
-      {/* Quick Single Drill Setup Modal with Dynamic Available Years */}
       <QuickTestModal
         isOpen={showQuickTestModal}
         onClose={() => setShowQuickTestModal(false)}

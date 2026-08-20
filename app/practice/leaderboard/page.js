@@ -1,98 +1,92 @@
 import { createClient } from '../../utils/supabase/server';
-import Navbar from '../../components/Navbar';
 import LeaderboardClientView from './LeaderboardClientView';
 
 export const dynamic = 'force-dynamic';
 
-export default async function LeaderboardPage() {
+export default async function LeaderboardPage({ searchParams }) {
+  const resolvedSearchParams = await searchParams;
+  const filterType = resolvedSearchParams?.type || 'all_mocks';
+  const selectedMockId = resolvedSearchParams?.mock_id || 'ALL';
+  const daysParam = resolvedSearchParams?.days ? Number(resolvedSearchParams.days) : 7;
   const supabase = await createClient();
 
-  // 1. Get logged in user profile
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 1. Authenticate user profile
+  const { data: { user } } = await supabase.auth.getUser();
+  let userProfile = null;
 
-  let profile = null;
   if (user) {
-    const { data: userProfile } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, department, role')
       .eq('id', user.id)
-      .single();
-    profile = userProfile;
+      .maybeSingle();
+    userProfile = profile;
   }
 
-  // 2. Fetch top 50 participants from the past 7 days
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  // 2. Fetch all published weekly mock editions for the edition dropdown
+  const { data: allMockEditions } = await supabase
+    .from('weekly_mocks')
+    .select('id, title, active_date')
+    .eq('is_published', true)
+    .order('active_date', { ascending: false });
 
-  const { data: rawSessions } = await supabase
-    .from('mock_sessions')
+  const latestMock = allMockEditions?.[0] || null;
+
+  // 3. Build test_sessions query
+  let query = supabase
+    .from('test_sessions')
     .select(`
       id,
+      user_id,
+      mode,
+      mock_id,
       score,
       total_questions,
       time_spent_seconds,
       created_at,
-      user_id,
-      profiles:user_id (id, full_name, department)
+      profiles (
+        id,
+        full_name,
+        department
+      ),
+      weekly_mocks (
+        id,
+        title,
+        active_date
+      )
     `)
-    .in('mode', ['weekly_mock', 'full_mock'])
-    .gte('created_at', oneWeekAgo.toISOString())
-    .order('score', { ascending: false })
-    .order('time_spent_seconds', { ascending: true })
-    .limit(50);
+    .in('mode', ['weekly_mock', 'weekly_challenge']);
 
-  // 3. Fallback Map for User Profiles if foreign key joins return array/null
-  const userIds = [...new Set((rawSessions || []).map((s) => s.user_id).filter(Boolean))];
-  let profileMap = {};
-
-  if (userIds.length > 0) {
-    const { data: profilesData } = await supabase
-      .from('profiles')
-      .select('id, full_name, department')
-      .in('id', userIds);
-
-    if (profilesData) {
-      profilesData.forEach((p) => {
-        profileMap[p.id] = p;
-      });
-    }
+  // Apply Mock Edition Filter
+  if (selectedMockId !== 'ALL') {
+    query = query.eq('mock_id', selectedMockId);
+  } else if (filterType === 'latest_mock' && latestMock?.id) {
+    query = query.eq('mock_id', latestMock.id);
+  } else if (filterType === 'timeframe') {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysParam);
+    query = query.gte('created_at', cutoffDate.toISOString());
   }
 
-  // 4. Normalize records for LeaderboardClientView
-  const normalizedScores = (rawSessions || []).map((session) => {
-    const joinedProfile = Array.isArray(session.profiles)
-      ? session.profiles[0]
-      : session.profiles;
+  const { data: scores, error } = await query
+    .order('score', { ascending: false })
+    .order('time_spent_seconds', { ascending: true })
+    .limit(200);
 
-    const fallbackProfile = profileMap[session.user_id];
-
-    return {
-      ...session,
-      profiles: {
-        id: session.user_id,
-        full_name:
-          joinedProfile?.full_name ||
-          fallbackProfile?.full_name ||
-          'Candidate',
-        department:
-          joinedProfile?.department ||
-          fallbackProfile?.department ||
-          'OAU Post-UTME',
-      },
-    };
-  });
+  if (error) {
+    console.error('Error fetching test_sessions leaderboard:', error);
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0c10] text-gray-100 flex flex-col selection:bg-orange-500 selection:text-white">
-      <Navbar profile={profile} />
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 space-y-8">
+    <div className="min-h-screen bg-[#07090e] py-8 sm:py-12 px-4 sm:px-8 selection:bg-orange-500 selection:text-white">
+      <div className="max-w-6xl mx-auto">
         <LeaderboardClientView 
-          profile={profile}
-          scores={normalizedScores}
+          profile={userProfile} 
+          scores={scores || []} 
+          mockEditions={allMockEditions || []}
+          latestMock={latestMock}
         />
-      </main>
+      </div>
     </div>
   );
 }

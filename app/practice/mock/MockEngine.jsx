@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "../../utils/supabase/client";
 import confetti from "canvas-confetti";
 import { toast } from "react-toastify";
@@ -27,6 +27,7 @@ function shuffleArray(array) {
 export default function MockExamEngine({
   profile,
   subjectsData = [],
+  availableYears = [],
   isPremium = false,
 }) {
   const supabase = createClient();
@@ -46,6 +47,7 @@ export default function MockExamEngine({
 
   // Engine States
   const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
+  const [selectedYear, setSelectedYear] = useState("all");
   const [activeSubjects, setActiveSubjects] = useState([]);
   const [isPreparing, setIsPreparing] = useState(false);
   const [started, setStarted] = useState(false);
@@ -56,15 +58,24 @@ export default function MockExamEngine({
   const [results, setResults] = useState(null);
   const [showReviewMode, setShowReviewMode] = useState(false);
 
+  // Derive unique years from question pools if not explicitly passed
+  const distinctYears = useMemo(() => {
+    if (availableYears.length > 0) return availableYears;
+    const yearSet = new Set();
+    subjectsData.forEach((s) => {
+      s.questions?.forEach((q) => {
+        if (q.year) yearSet.add(q.year);
+      });
+    });
+    return Array.from(yearSet).sort((a, b) => b - a);
+  }, [availableYears, subjectsData]);
+
   // Timing: 10 Qs per subject (40 total) for PRO, 5 Qs per subject (20 total) for Free
   const questionsPerSubject = userIsPremium ? 10 : 5;
-  // 1 hour (3600s) for PRO, 30 mins (1800s) for Free
-  const TOTAL_TIME_SECONDS = userIsPremium ? 60 * 60 : 30 * 60;
+  const TOTAL_TIME_SECONDS = userIsPremium ? 40 * 60 : 20 * 60;
   const [timeLeft, setTimeLeft] = useState(TOTAL_TIME_SECONDS);
 
-  // -------------------------------------------------------------
-  // ACTIVE EXAM BROWSER LOCK (Prevents accidental exits)
-  // -------------------------------------------------------------
+  // Active Exam Browser Lock
   const isTestActive = started && !isSubmitted;
 
   useEffect(() => {
@@ -72,17 +83,14 @@ export default function MockExamEngine({
 
     const handleBeforeUnload = (e) => {
       e.preventDefault();
-      e.returnValue =
-        "You have an active exam in progress. Leaving will forfeit your attempt.";
+      e.returnValue = "You have an active exam in progress. Leaving will forfeit your attempt.";
       return e.returnValue;
     };
 
     window.history.pushState(null, "", window.location.href);
     const handlePopState = () => {
       window.history.pushState(null, "", window.location.href);
-      toast.warn(
-        "Active Exam in Progress! Use the Submit or Quit button on screen."
-      );
+      toast.warn("Active Exam in Progress! Use the Submit or Quit button on screen.");
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -102,23 +110,18 @@ export default function MockExamEngine({
       if (selectedSubjectIds.length < 3) {
         setSelectedSubjectIds([...selectedSubjectIds, id]);
       } else {
-        toast.info(
-          "You have already selected 3 elective subjects alongside Aptitude."
-        );
+        toast.info("You have already selected 3 elective subjects alongside Aptitude.");
       }
     }
   };
 
-  // -------------------------------------------------------------
-  // LAUNCH TEST WITH LOADING STATE & QUESTION SHUFFLING
-  // -------------------------------------------------------------
+  // Launch Test with Year-Filtered Question Pools
   const handleStartExam = async () => {
     if (selectedSubjectIds.length !== 3) {
       toast.error("Please select exactly 3 elective subjects to proceed.");
       return;
     }
 
-    // Trigger visual loading transition
     setIsPreparing(true);
 
     const chosenSubjects = [
@@ -126,17 +129,23 @@ export default function MockExamEngine({
       ...selectableSubjects.filter((s) => selectedSubjectIds.includes(s.id)),
     ];
 
-    // Artificial delay (700ms) for smooth test-setup UI experience
     await new Promise((resolve) => setTimeout(resolve, 700));
 
     const bundledQuestions = [];
 
     chosenSubjects.forEach((sub) => {
       if (sub?.questions && sub.questions.length > 0) {
-        // High-entropy shuffle for each selected subject pool
-        const randomized = shuffleArray(sub.questions);
+        // Filter by selected year if specific year chosen
+        let filteredPool = sub.questions;
+        if (selectedYear !== "all") {
+          const yearFiltered = sub.questions.filter(
+            (q) => String(q.year) === String(selectedYear)
+          );
+          // Fallback to full pool if year-filtered pool doesn't have enough questions
+          filteredPool = yearFiltered.length >= questionsPerSubject ? yearFiltered : sub.questions;
+        }
 
-        // Extract 10 Qs for PRO or 5 Qs for Free
+        const randomized = shuffleArray(filteredPool);
         const sliced = randomized.slice(0, questionsPerSubject).map((q) => ({
           ...q,
           subject_name: sub.name,
@@ -150,7 +159,7 @@ export default function MockExamEngine({
     if (bundledQuestions.length === 0) {
       setIsPreparing(false);
       toast.error(
-        "No questions found for the selected combination. Please check your subject selection or upgrade to PRO."
+        "No questions found for the selected combination and year. Please adjust your selection."
       );
       return;
     }
@@ -166,9 +175,7 @@ export default function MockExamEngine({
     setStarted(true);
   };
 
-  // -------------------------------------------------------------
-  // SUBMISSION HANDLER & GRADING
-  // -------------------------------------------------------------
+  // Submission Handler & Grading
   const finishExam = useCallback(async () => {
     let totalScore = 0;
     const subjectBreakdown = {};
@@ -185,12 +192,10 @@ export default function MockExamEngine({
 
       subjectBreakdown[subName].total += 1;
 
-      // Case-insensitive answer comparison
       if (
         answers[idx] &&
         q.correct_option &&
-        answers[idx].trim().toUpperCase() ===
-          q.correct_option.trim().toUpperCase()
+        answers[idx].trim().toUpperCase() === q.correct_option.trim().toUpperCase()
       ) {
         totalScore += 1;
         subjectBreakdown[subName].correct += 1;
@@ -215,14 +220,12 @@ export default function MockExamEngine({
       confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
     }
 
-    // 1. Resolve User ID
     let currentUserId = profile?.id;
     if (!currentUserId) {
       const { data: authData } = await supabase.auth.getUser();
       currentUserId = authData?.user?.id;
     }
 
-    // 2. Insert test session adhering to check constraint ('full_mock')
     if (currentUserId) {
       const { error } = await supabase.from("mock_sessions").insert({
         user_id: currentUserId,
@@ -273,9 +276,7 @@ export default function MockExamEngine({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // -------------------------------------------------------------
-  // 1. FULL-SCREEN TEST PREPARATION OVERLAY
-  // -------------------------------------------------------------
+  // Full-Screen Test Preparation Overlay
   if (isPreparing) {
     return (
       <div className="bg-[#141822] border border-gray-800 rounded-3xl p-8 sm:p-12 text-center max-w-lg mx-auto shadow-2xl space-y-6 select-none animate-in fade-in zoom-in-95 duration-200">
@@ -293,8 +294,7 @@ export default function MockExamEngine({
             Preparing Your Exam Floor
           </h2>
           <p className="text-xs text-gray-400 leading-relaxed">
-            Bundling questions for{" "}
-            <strong className="text-white">Aptitude</strong> and your 3 chosen subjects into a secured 1-hour CBT session...
+            Bundling questions for <strong className="text-white">Aptitude</strong> and your 3 chosen subjects ({selectedYear === "all" ? "All Years" : `${selectedYear} Series`})...
           </p>
         </div>
 
@@ -305,15 +305,14 @@ export default function MockExamEngine({
           </div>
           <div className="flex items-center gap-2.5 text-xs text-gray-300">
             <FaCheckCircle className="text-emerald-400 text-xs shrink-0" />
-            <span>Questions randomized from national question bank</span>
+            <span>
+              Target Year: <strong className="text-white uppercase font-mono">{selectedYear === "all" ? "Comprehensive (All Years)" : `${selectedYear} CBT Bank`}</strong>
+            </span>
           </div>
           <div className="flex items-center gap-2.5 text-xs text-gray-300">
             <FaShieldAlt className="text-orange-400 text-xs shrink-0" />
             <span>
-              Timer initialized:{" "}
-              <strong className="text-orange-400 font-mono">
-                {Math.floor(TOTAL_TIME_SECONDS / 60)} minutes
-              </strong>
+              Timer initialized: <strong className="text-orange-400 font-mono">{Math.floor(TOTAL_TIME_SECONDS / 60)} minutes</strong>
             </span>
           </div>
         </div>
@@ -321,9 +320,7 @@ export default function MockExamEngine({
     );
   }
 
-  // -------------------------------------------------------------
-  // 2. BRIEFING & SETUP FLOOR
-  // -------------------------------------------------------------
+  // Briefing & Setup Floor
   if (!started) {
     return (
       <MockBriefing
@@ -332,6 +329,9 @@ export default function MockExamEngine({
         selectableSubjects={selectableSubjects}
         selectedSubjectIds={selectedSubjectIds}
         onToggleSubject={handleToggleSubject}
+        availableYears={distinctYears}
+        selectedYear={selectedYear}
+        onSelectYear={setSelectedYear}
         onStartExam={handleStartExam}
         isPremium={userIsPremium}
         questionsPerSubject={questionsPerSubject}
@@ -339,9 +339,7 @@ export default function MockExamEngine({
     );
   }
 
-  // -------------------------------------------------------------
-  // 3. CORRECTIONS & REVIEW FLOOR
-  // -------------------------------------------------------------
+  // Corrections & Review Floor
   if (isSubmitted && showReviewMode && results) {
     return (
       <MockReviewDesk
@@ -353,9 +351,7 @@ export default function MockExamEngine({
     );
   }
 
-  // -------------------------------------------------------------
-  // 4. POST-EXAM RESULTS SUMMARY
-  // -------------------------------------------------------------
+  // Post-Exam Results Summary
   if (isSubmitted && results) {
     return (
       <MockSummary
@@ -367,9 +363,7 @@ export default function MockExamEngine({
     );
   }
 
-  // -------------------------------------------------------------
-  // 5. LIVE EXAM DESK FLOOR
-  // -------------------------------------------------------------
+  // Live Exam Desk Floor
   return (
     <MockTestDesk
       profile={profile}
